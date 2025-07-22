@@ -10,6 +10,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": false,
     "category": "Music",
     "copyright": "Copyright © 2025 Cyan Froste",    
     "shortDescription": "A beautiful and modern music player",
