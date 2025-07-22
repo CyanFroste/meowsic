@@ -31,8 +31,9 @@ A beautiful, modern, offline music player for **Windows**.
 
 ### [Screenshots](./screenshots/index.md)
 
-![Player Maximized](./screenshots/player-maximized-1.png)  
-![Playlist Reordering](./screenshots/playlist-reorder.png)
+![](./screenshots/3.png)
+![](./screenshots/6.png)
+![](./screenshots/7.png)
 
 More: [See all screenshots](./screenshots/index.md)
 

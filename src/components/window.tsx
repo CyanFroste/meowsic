@@ -83,7 +83,11 @@ export function Window() {
     track: player.current ?? null,
     elapsed: player.elapsed,
     seek: player.seek,
-    setVolume: player.setVolume,
+    setVolume: value => {
+      player.setVolume(value)
+      store.setState({ volume: value / 100 })
+      setVolume(value)
+    },
   })
 
   return (
@@ -160,8 +164,8 @@ export function Window() {
                 label="Volume"
                 color="foreground"
                 value={volume}
-                onChangeEnd={() => store.setState({ volume: volume / 100 })}
                 onChange={value => setVolume(typeof value === 'number' ? value : value[0])}
+                onChangeEnd={value => store.setState({ volume: (typeof value === 'number' ? value : value[0]) / 100 })}
               />
             </div>
           </PopoverContent>
