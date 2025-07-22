@@ -10,6 +10,10 @@
   },
   "bundle": {
     "active": true,
+    "category": "Music",
+    "copyright": "Copyright © 2025 Cyan Froste",    
+    "shortDescription": "A beautiful and modern music player",
+    "targets": ["nsis", "deb", "rpm"],
     "icon": ["icons/icon.ico"],
     "fileAssociations": [
       { "ext": ["mp3"] },
