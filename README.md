@@ -6,7 +6,7 @@
 
 # Meowsic
 
-A beautiful, modern, offline music player for **Windows**.
+A beautiful, modern music player for **Windows** and **Linux**.
 
 [![Downloads count](https://img.shields.io/github/downloads/CyanFroste/meowsic/total.svg)](https://github.com/CyanFroste/meowsic/releases)
 [![Latest version](https://img.shields.io/github/v/release/CyanFroste/meowsic?label=latest&color=2596be)](https://github.com/CyanFroste/meowsic/releases/latest)
