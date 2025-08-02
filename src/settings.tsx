@@ -16,7 +16,7 @@ import {
   Slider,
   useDisclosure,
 } from '@heroui/react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { getName, getVersion } from '@tauri-apps/api/app'
 import { revealItemInDir, openUrl } from '@tauri-apps/plugin-opener'
@@ -29,12 +29,13 @@ import {
   FileScanIcon,
   HeartIcon,
   ListRestartIcon,
+  PackageIcon,
   PlusIcon,
   ShieldAlertIcon,
   XIcon,
 } from 'lucide-react'
 import { setVolume as setPlayerVolume } from '@/player'
-import { installDependencies, loadDependencies, scanUrls } from '@/streaming'
+import { installDependencies, getDependencies } from '@/streaming'
 
 const FONTS = ['Inter', 'Poppins', 'Merriweather', 'Dancing Script']
 
@@ -51,6 +52,8 @@ export function SettingsScreen() {
     queryKey: ['app'],
     queryFn: async () => ({ name: await getName(), version: await getVersion() }),
   })
+
+  const queryDependencies = useQuery({ queryKey: ['dependencies'], queryFn: getDependencies })
 
   const mutationScan = useMutation({
     mutationFn: scanDirs,
@@ -99,6 +102,21 @@ export function SettingsScreen() {
       queryDirs.refetch()
     },
   })
+
+  const mutationInstallDependencies = useMutation({
+    mutationKey: ['install-dependencies'],
+    mutationFn: installDependencies,
+    onSuccess: () => {
+      // NOTE: the promise toast won't go away otherwise
+      setTimeout(() => addToast({ timeout: 5000, color: 'success', title: 'Dependencies Installed Successfully' }), 100)
+      queryDependencies.refetch()
+    },
+  })
+
+  const mutationInstallDependenciesState = useMutationState({
+    filters: { mutationKey: ['install-dependencies'], exact: true },
+    select: m => m.state,
+  })[0]
 
   return (
     <div className="p-3 pt-[calc(theme(spacing.10)+theme(spacing.3))] overflow-auto w-full">
@@ -154,21 +172,50 @@ export function SettingsScreen() {
         <hr className="w-full mt-3 border-default/30" />
         <div className="text-large mt-2">External Sources</div>
 
-        <div className="text-small mb-4 text-default-500">
-          To stream and save tracks from external sources, you need to install the dependencies first.
-          <br /> This will download the latest version of <Code>yt-dlp</Code> and <Code>ffmpeg</Code>.
+        <div className="text-small mb-4 text-default-500 leading-relaxed">
+          {queryDependencies.isSuccess && queryDependencies.data ? (
+            <>
+              You can now stream and save tracks from external sources. <br />
+              <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are installed successfully.
+            </>
+          ) : (
+            <>
+              To stream and save tracks from external sources, you need to install the required dependencies first.
+              <br /> This will download <Code className="mx-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="flat"
-            radius="sm"
-            onPress={async () => {
-              await installDependencies()
-              console.log('Dependencies installed')
-            }}>
-            Install Dependencies
-          </Button>
+          {queryDependencies.isSuccess && (
+            <>
+              {queryDependencies.data ? (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  onPress={() => {
+                    if (queryDependencies.data) revealItemInDir(queryDependencies.data?.ffmpeg)
+                  }}>
+                  <PackageIcon className="text-lg" /> Locate Dependencies
+                </Button>
+              ) : (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  isLoading={mutationInstallDependenciesState?.status === 'pending'}
+                  onPress={() => {
+                    addToast({
+                      title: 'Installing Dependencies',
+                      description: 'Please wait. This may take a few minutes.',
+                      promise: mutationInstallDependencies.mutateAsync(),
+                      timeout: 1, // TODO: ? possible to change state from within ?
+                    })
+                  }}>
+                  <PackageIcon className="text-lg" /> Install Dependencies
+                </Button>
+              )}
+            </>
+          )}
         </div>
 
         <hr className="w-full mt-3 border-default/30" />

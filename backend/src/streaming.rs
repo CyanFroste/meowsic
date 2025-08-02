@@ -2,8 +2,12 @@ use crate::db::Db;
 use crate::tracks;
 use crate::utils::{Platform, extract_zip_archive};
 use anyhow::{Context, Result, anyhow};
-use std::fs;
+use serde::Serialize;
+use serde_json::Value as JsonValue;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use std::process::Stdio;
+use std::{fs, process};
 use tauri_plugin_http::reqwest::{Client as HttpClient, IntoUrl};
 
 pub struct StreamingClient {
@@ -15,7 +19,7 @@ pub struct StreamingClient {
     pub dependencies: Option<Dependencies>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Dependencies {
     pub ffmpeg: PathBuf,
     pub yt_dlp: PathBuf,
@@ -39,6 +43,57 @@ impl StreamingClient {
             http_client,
             platform,
             dependencies: None,
+        }
+    }
+
+    pub fn search(
+        &self,
+        source: impl AsRef<str>,
+        query: impl AsRef<str>,
+    ) -> Result<Vec<JsonValue>> {
+        let dependencies = self.dependencies.as_ref().context("Missing Dependencies")?;
+
+        match source.as_ref() {
+            "youtube" => {
+                let query = format!(
+                    "ytsearch{results_count}:{}",
+                    query.as_ref(),
+                    results_count = 10
+                );
+
+                let format = r#"{ "url": %(url)j, "title": %(title)j, "thumbnails": %(thumbnails)j, "duration": %(duration)j, "views": %(view_count)j, "channel": %(channel)j }"#;
+
+                #[rustfmt::skip]
+                let child = process::Command::new(&dependencies.yt_dlp)
+                    .args([
+                        &query,
+                        "--skip-download",
+                        "--flat-playlist",
+                        "--print", format,
+                    ])
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+
+                let reader = child
+                    .stdout
+                    .map(BufReader::new)
+                    .ok_or_else(|| anyhow!("Failed to capture stdout"))?;
+
+                let mut res = Vec::new();
+
+                for line in reader.lines() {
+                    if let Ok(line) = line
+                        && !line.trim().is_empty()
+                    {
+                        let json: JsonValue = serde_json::from_str(&line)?;
+                        res.push(json);
+                    }
+                }
+
+                Ok(res)
+            }
+
+            _ => return Err(anyhow!("Unsupported Source")),
         }
     }
 

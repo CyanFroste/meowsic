@@ -1,6 +1,8 @@
 use crate::db::{Emotion, GetTracksFilters};
+use crate::streaming::Dependencies;
 use crate::tracks::{Album, Lyrics, Track, TrackPath};
 use crate::{AppState, Error};
+use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use tauri::State;
 use tauri_plugin_http::reqwest::Url;
@@ -344,6 +346,21 @@ pub async fn db_reset(state: State<AppState, '_>) -> Result<(), Error> {
 }
 
 #[tauri::command]
+pub async fn streaming_search(
+    state: State<AppState, '_>,
+    source: String,
+    query: String,
+) -> Result<Vec<JsonValue>, Error> {
+    let res = state
+        .streaming_client
+        .read()
+        .await
+        .search(&source, &query)?;
+
+    Ok(res)
+}
+
+#[tauri::command]
 pub async fn streaming_scan_urls(
     state: State<AppState, '_>,
     urls: Vec<Url>,
@@ -376,4 +393,11 @@ pub async fn streaming_install_dependencies(state: State<AppState, '_>) -> Resul
         .await?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn streaming_get_dependencies(
+    state: State<AppState, '_>,
+) -> Result<Option<Dependencies>, Error> {
+    Ok(state.streaming_client.read().await.dependencies.clone())
 }

@@ -165,9 +165,11 @@ async fn main() -> Result<()> {
             commands::db_backup,
             commands::db_restore,
             commands::db_reset,
+            commands::streaming_search,
             commands::streaming_scan_urls,
             commands::streaming_load_dependencies,
             commands::streaming_install_dependencies,
+            commands::streaming_get_dependencies,
         ])
         .run(tauri::generate_context!())?;
 
