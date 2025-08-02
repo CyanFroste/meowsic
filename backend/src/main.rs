@@ -4,50 +4,55 @@
 mod commands;
 mod db;
 mod players;
+mod streaming;
 mod tracks;
 mod utils;
 
 use anyhow::Result;
 use db::Db;
-use parking_lot::Mutex;
 use players::{Player, ScrubPlayer};
 use rodio::{OutputStream, Sink};
 use serde::Serialize;
 use std::sync::Arc;
-use tauri::{Builder, Emitter, Manager};
+use streaming::StreamingClient;
+use tauri::{Builder, Manager};
 use tauri_plugin_http::reqwest::Client as HttpClient;
 use tokio::runtime::Handle as RuntimeHandle;
+use tokio::sync::{Mutex, RwLock};
 use tracks::Track;
+
+use crate::utils::Platform;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // ! DO NOT DROP _stream (don't assign to just '_')
     let (_stream, handle) = OutputStream::try_default()?;
-    let sink = Sink::try_new(&handle)?;
-    let player = Arc::new(Mutex::new(Player::new(sink)?));
+    let player_sink = Sink::try_new(&handle)?;
 
     // ! DO NOT DROP _stream (don't assign to just '_')
     let (_stream, handle) = OutputStream::try_default()?;
-    let sink = Sink::try_new(&handle)?;
-    let scrub_player = Arc::new(Mutex::new(ScrubPlayer::new(sink)?));
+    let scrub_player_sink = Sink::try_new(&handle)?;
 
     let mut builder = Builder::default();
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            if let Some(window) = app.get_webview_window("main") {
-                _ = window.set_focus();
-            }
-
-            if let Some(path) = args.get(1) {
-                let state = app.state::<AppState>();
-
-                if let Ok(track) = Track::new(path, &state.db.covers_path) {
-                    _ = app.emit("play-arbitrary-track", track);
+        #[cfg(not(debug_assertions))]
+        {
+            builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
+                if let Some(window) = app.get_webview_window("main") {
+                    _ = window.set_focus();
                 }
-            }
-        }));
+
+                if let Some(path) = args.get(1) {
+                    let state = app.state::<AppState>();
+
+                    if let Ok(track) = Track::from_file(path, &state.db.covers_path) {
+                        _ = app.emit("play-arbitrary-track", track);
+                    }
+                }
+            }));
+        }
 
         builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
@@ -75,20 +80,46 @@ async fn main() -> Result<()> {
             let covers_path = data_path.join("covers");
             let db = Db::new(data_path.join(format!("{name}.db")), &covers_path);
 
+            let platform = Platform::current();
+            let data_path = app.path().app_data_dir()?;
+            let cache_path = app.path().app_cache_dir()?;
+
+            let mut streaming_client = StreamingClient::new(
+                db.clone(),
+                http_client.clone(),
+                platform,
+                data_path,
+                cache_path,
+            );
+
             // could always do this from UI side but, oh well
             tokio::task::block_in_place(|| RuntimeHandle::current().block_on(db.init()))?;
+            streaming_client.init();
+
+            let streaming_client = Arc::new(RwLock::new(streaming_client));
+
+            let player = Arc::new(Mutex::new(Player::new(
+                player_sink,
+                streaming_client.clone(),
+            )?));
+
+            let scrub_player = Arc::new(Mutex::new(ScrubPlayer::new(scrub_player_sink)?));
 
             if let Some(path) = std::env::args().nth(1) {
-                if let Ok(track) = Track::new(path, &covers_path) {
-                    player.lock().arbitrary_tracks.push(track);
+                if let Ok(track) = Track::from_file(path, &covers_path) {
+                    tokio::task::block_in_place(|| {
+                        RuntimeHandle::current().block_on(async {
+                            player.lock().await.arbitrary_tracks.push(track);
+                        })
+                    });
                 }
             }
 
             app.manage(AppState {
-                http_client,
+                db,
                 player,
                 scrub_player,
-                db,
+                streaming_client,
             });
 
             Ok(())
@@ -134,7 +165,9 @@ async fn main() -> Result<()> {
             commands::db_backup,
             commands::db_restore,
             commands::db_reset,
-            commands::tracks_find_artist_image,
+            commands::streaming_scan_urls,
+            commands::streaming_load_dependencies,
+            commands::streaming_install_dependencies,
         ])
         .run(tauri::generate_context!())?;
 
@@ -142,10 +175,10 @@ async fn main() -> Result<()> {
 }
 
 struct AppState {
-    http_client: HttpClient,
+    db: Db,
     player: Arc<Mutex<Player>>,
     scrub_player: Arc<Mutex<ScrubPlayer>>,
-    db: Db,
+    streaming_client: Arc<RwLock<StreamingClient>>,
 }
 
 #[derive(Debug, Clone, Serialize)]

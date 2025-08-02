@@ -34,6 +34,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { setVolume as setPlayerVolume } from '@/player'
+import { installDependencies, loadDependencies, scanUrls } from '@/streaming'
 
 const FONTS = ['Inter', 'Poppins', 'Merriweather', 'Dancing Script']
 
@@ -149,6 +150,26 @@ export function SettingsScreen() {
           onPress={() => mutationScan.mutate()}>
           <FileScanIcon className="text-lg" /> Scan
         </Button>
+
+        <hr className="w-full mt-3 border-default/30" />
+        <div className="text-large mt-2">External Sources</div>
+
+        <div className="text-small mb-4 text-default-500">
+          To stream and save tracks from external sources, you need to install the dependencies first.
+          <br /> This will download the latest version of <Code>yt-dlp</Code> and <Code>ffmpeg</Code>.
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="flat"
+            radius="sm"
+            onPress={async () => {
+              await installDependencies()
+              console.log('Dependencies installed')
+            }}>
+            Install Dependencies
+          </Button>
+        </div>
 
         <hr className="w-full mt-3 border-default/30" />
         <div className="text-large my-2">Appearance</div>

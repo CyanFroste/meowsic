@@ -8,6 +8,7 @@ export type Track = {
   name: string
   extension: string
   duration: number
+  source: string
   cover?: string | null
   title?: string | null
   artist?: string | null
@@ -54,8 +55,12 @@ export function normalizeMeta(track?: Track | null) {
 export function createSearchIndex() {
   return new MiniSearch({
     idField: 'hash',
-    fields: ['title', 'album', 'artist', 'genre'],
+    fields: ['title', 'name', 'album', 'artist', 'genre'],
     storeFields: ['hash'],
-    searchOptions: { boost: { title: 2, album: 1, artist: 1 }, prefix: true, fuzzy: true },
+    searchOptions: { boost: { title: 2 }, prefix: true, fuzzy: true },
   })
+}
+
+export function getTrackPathType(path: string) {
+  return path.startsWith('http') ? 'link' : 'file'
 }

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { addToast } from '@heroui/react'
 import { Interval } from '@/utils'
 import { rankUp } from '@/emotions'
+import { getTrackPathType } from '@/tracks'
 import { setMiniPlayerVisibility, setPlayerMaximized } from '@/settings'
 import { BackendPlayer, WebPlayer } from '@/player/types'
 import type { ShortcutHandler } from '@tauri-apps/plugin-global-shortcut'
@@ -25,6 +26,7 @@ function initialState(): Store {
     isShuffled: false,
     backupQueue: [],
     player: backendPlayer,
+    loading: null,
   }
 }
 
@@ -38,11 +40,29 @@ export async function goto(index: number, using?: Player) {
   const track = state.queue[index]
   const player = using ?? backendPlayer
 
+  store.setState({ loading: track })
+
   // case: stop the previous player
   if (player !== state.player) state.player.stop()
 
   try {
-    await player.goto(index)
+    const promise = player.goto(index)
+
+    // case: show a toast when loading from external sources
+    if (getTrackPathType(track.path)[0] === 'l')
+      addToast({
+        title: track.title ?? track.name,
+        promise,
+        color: 'warning',
+        severity: 'success',
+        // TODO: show a formatted Card with the track info
+        description: `Fetching Track from ${track.path}`,
+        shouldShowTimeoutProgress: true,
+        timeout: 1000,
+      })
+
+    await promise
+
     if (!state.isPaused) interval.start()
 
     // case: replace with metadata from the web player
@@ -64,7 +84,7 @@ export async function goto(index: number, using?: Player) {
       throw err
     }
 
-    store.setState({ current: index, queue, elapsed: 0, error: null, player })
+    store.setState({ current: index, queue, elapsed: 0, error: null, player, loading: null })
   } catch (err) {
     console.error(err, track)
 
@@ -72,7 +92,7 @@ export async function goto(index: number, using?: Player) {
     if (!using) return await goto(index, webPlayer)
 
     const error = err as Error // since backend response have similar type
-    store.setState({ current: index, elapsed: 0, error })
+    store.setState({ current: index, elapsed: 0, error, loading: null })
 
     addToast({ timeout: 5000, title: 'Track', description: error.message, color: 'danger' })
   }
@@ -344,4 +364,5 @@ export type Store = {
   backupQueue: Track[]
   error?: Error | null
   player: Player
+  loading?: Track | null
 }

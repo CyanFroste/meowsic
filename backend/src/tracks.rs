@@ -1,17 +1,21 @@
 use crate::db::TrackRow;
+use crate::streaming::Dependencies;
 use crate::utils;
-use anyhow::{Context, Result};
+use crate::utils::UrlExt;
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use serde_with::skip_serializing_none;
-use std::fmt::Debug;
+use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process;
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::{MetadataOptions, StandardTagKey, StandardVisualKey};
 use symphonia::core::probe::Hint;
 use symphonia::default::get_probe;
-use tauri_plugin_http::reqwest::Client as HttpClient;
+use tauri_plugin_http::reqwest::{Client as HttpClient, IntoUrl, Url};
 use walkdir::WalkDir;
 
 #[skip_serializing_none]
@@ -19,10 +23,11 @@ use walkdir::WalkDir;
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub hash: String,
-    pub path: PathBuf,
+    pub path: TrackPath,
     pub name: String,
     pub extension: String,
     pub duration: u64,
+    pub source: String,
     pub cover: Option<PathBuf>,
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -35,8 +40,106 @@ pub struct Track {
     pub rules: Option<String>,
 }
 
+pub const DEFAULT_SOURCE: &str = "file";
+
 impl Track {
-    pub fn new(path: impl Into<PathBuf>, covers_path: impl AsRef<Path>) -> Result<Self> {
+    pub async fn from_link(
+        url: impl IntoUrl,
+        covers_path: impl AsRef<Path>,
+        http_client: &HttpClient,
+        dependencies: &Dependencies,
+    ) -> Result<Self> {
+        let url = url.into_url()?;
+
+        match url.source() {
+            Some(source) if source == "youtube" => {
+                let output = process::Command::new(&dependencies.yt_dlp)
+                    .args(["-f", "bestaudio", "-j", url.as_str(), "--no-playlist"])
+                    .output()?;
+
+                let json: JsonValue = serde_json::from_slice(&output.stdout)?;
+                let hash = utils::hash(url.as_str().as_bytes());
+
+                let name = json["title"]
+                    .as_str()
+                    .map(|x| x.to_string())
+                    .unwrap_or_else(|| url.to_string());
+
+                let duration = json["duration"].as_u64().unwrap_or_default();
+                let title = json["track"].as_str().map(|x| x.to_string());
+                let artist = json["artist"].as_str().map(|x| x.to_string());
+                let album = json["album"].as_str().map(|x| x.to_string());
+                let date = json["release_date"].as_str().map(|x| x.to_string());
+
+                // TODO: do urls need extension?
+                let extension = json["ext"]
+                    .as_str()
+                    .map(|x| x.to_string())
+                    .unwrap_or_default();
+
+                let mut data = Self {
+                    // this isn't the actual playable url
+                    // have to fetch and cache it on track selection
+                    path: TrackPath::Link(url),
+                    hash: hash.to_string(),
+                    source,
+                    name,
+                    extension,
+                    duration,
+                    title,
+                    artist,
+                    album,
+                    date,
+                    ..Self::default()
+                };
+
+                let mut thumbnail = json["thumbnail"].as_str();
+
+                if let Some(thumbnails) = json["thumbnails"].as_array() {
+                    let mut size = 0;
+
+                    for item in thumbnails {
+                        if let (Some(w), Some(h)) =
+                            (item["width"].as_u64(), item["height"].as_u64())
+                            && w == h
+                            && w > size
+                        {
+                            thumbnail = item["url"].as_str();
+                            size = w;
+                        }
+                    }
+                }
+
+                // download thumbnail
+                if let Some(thumbnail) = thumbnail {
+                    let res = http_client.get(thumbnail).send().await?;
+
+                    let ext = res
+                        .headers()
+                        .get("content-type")
+                        .and_then(|x| x.to_str().ok())
+                        .and_then(|x| x.split('/').last())
+                        .unwrap_or("jpg")
+                        .to_string();
+
+                    let bytes = res.bytes().await?;
+                    let path = covers_path.as_ref().join(format!("{hash}.{ext}"));
+
+                    fs::write(&path, &bytes)?;
+                    data.cover = Some(path);
+                }
+
+                Ok(data)
+            }
+
+            _ => Err(anyhow!("Unsupported Link")),
+        }
+    }
+
+    pub fn from_file(path: impl Into<PathBuf>, covers_path: impl AsRef<Path>) -> Result<Self> {
+        // this is also mapped in the database
+        let source = DEFAULT_SOURCE.to_string();
+
         let path: PathBuf = path.into();
         let file = fs::File::open(&path)?;
 
@@ -71,10 +174,11 @@ impl Track {
         )?;
 
         let mut data = Self {
-            path,
             name,
+            source,
             extension,
             hash: hash.to_string(),
+            path: TrackPath::File(path),
             ..Self::default()
         };
 
@@ -141,7 +245,84 @@ impl Track {
     }
 }
 
-pub fn scan(
+#[derive(Debug, Clone)]
+pub enum TrackPath {
+    File(PathBuf),
+    Link(Url),
+}
+
+impl Serialize for TrackPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for TrackPath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(s.into())
+    }
+}
+
+impl Default for TrackPath {
+    fn default() -> Self {
+        Self::File(PathBuf::new())
+    }
+}
+
+impl Display for TrackPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::File(path) => write!(f, "{}", path.to_string_lossy()),
+            Self::Link(url) => write!(f, "{}", url),
+        }
+    }
+}
+
+impl From<&str> for TrackPath {
+    fn from(value: &str) -> Self {
+        match Url::parse(value) {
+            Ok(url) if url.has_host() => Self::Link(url),
+            _ => Self::File(PathBuf::from(value)),
+        }
+    }
+}
+
+impl From<String> for TrackPath {
+    fn from(value: String) -> Self {
+        Self::from(value.as_str())
+    }
+}
+
+pub async fn from_urls(
+    urls: &[impl IntoUrl + Clone],
+    covers_path: impl AsRef<Path>,
+    http_client: &HttpClient,
+    dependencies: &Dependencies,
+) -> Result<(Vec<Track>, Vec<String>)> {
+    let mut tracks = Vec::new();
+    let mut errors = Vec::new();
+
+    for possible_url in urls {
+        match possible_url.clone().into_url() {
+            Ok(url) => match Track::from_link(url, &covers_path, http_client, dependencies).await {
+                Ok(track) => tracks.push(track),
+                Err(err) => errors.push(format!("[ERR] {} : {err}", possible_url.as_str())),
+            },
+            Err(err) => errors.push(format!("[ERR] {} : {err}", possible_url.as_str())),
+        }
+    }
+
+    Ok((tracks, errors))
+}
+
+pub fn from_dirs(
     dirs: &[impl AsRef<Path>],
     covers_path: impl AsRef<Path>,
 ) -> Result<(Vec<Track>, Vec<String>)> {
@@ -166,7 +347,7 @@ pub fn scan(
                 continue;
             }
 
-            match Track::new(path, &covers_path) {
+            match Track::from_file(path, &covers_path) {
                 Ok(track) => tracks.push(track),
                 // simple error format to show in the UI
                 Err(err) => errors.push(format!("[ERR] {} : {err}", path.display())),
@@ -181,10 +362,11 @@ impl From<TrackRow> for Track {
     fn from(row: TrackRow) -> Self {
         Self {
             hash: row.hash,
-            path: PathBuf::from(row.path),
+            path: row.path.into(),
             name: row.name,
             extension: row.extension,
             duration: row.duration.try_into().unwrap_or_default(),
+            source: row.source,
             cover: row.cover.map(PathBuf::from),
             title: row.title,
             artist: row.artist,
@@ -209,37 +391,4 @@ pub struct Album {
 pub struct Lyrics {
     pub plain: String,
     pub synced: String,
-}
-
-pub async fn find_artist_image(
-    _http_client: &HttpClient,
-    _name: impl AsRef<str>,
-) -> Result<Option<String>> {
-    // let url = format!(
-    //     "http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist={name}&api_key={api_key}&format=json",
-    //     api_key = "",
-    //     name = name.as_ref()
-    // );
-
-    // let data: JsonValue = http_client.get(&url).send().await?.json().await?;
-    // let mbid = data["artist"]["mbid"].as_str().unwrap_or_default();
-
-    // let url = format!("https://musicbrainz.org/ws/2/artist/{mbid}?inc=url-rels&fmt=json");
-    // let data: JsonValue = http_client.get(&url).send().await?.json().await?;
-
-    // let url = data["relations"]
-    //     .as_array()
-    //     .and_then(|x| x.iter().find(|it| it["type"].as_str() == Some("image")))
-    //     .and_then(|it| it["url"]["resource"].as_str())
-    //     .map(|x| x.to_string());
-
-    // let url = url
-    //     .filter(|x| x.starts_with("https://commons.wikimedia.org/wiki/File:"))
-    //     .map(|x| {
-    //         "https://commons.wikimedia.org/wiki/Special:Redirect/file".to_string()
-    //             + &x[x.rfind('/').unwrap_or(0)..]
-    //     });
-
-    // Ok(url)
-    Ok(None)
 }

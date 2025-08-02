@@ -4,6 +4,8 @@
 
 - [ ] hot swapping audio outputs
 - [ ] external media playback
+- [ ] visualizer? with cat animation
+- [ ] media server support (Jellyfin, Plex, etc.)
 - [ ] layout customization
 - [ ] toolips and toasts
 - [ ] load tracks from zip
@@ -32,6 +34,7 @@
 
 ## Fixes
 
+- [ ] better lyrics search
 - [ ] better error handling
 - [ ] better screen size support
 - [ ] optimizations (memo, etc.)

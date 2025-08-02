@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { revealItemInDir, openUrl } from '@tauri-apps/plugin-opener'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
@@ -33,7 +34,7 @@ import {
   UserRoundIcon,
 } from 'lucide-react'
 import { getAssetUrl } from '@/utils'
-import { normalizeMeta } from '@/tracks'
+import { normalizeMeta, getTrackPathType } from '@/tracks'
 import {
   PlainLyricsView,
   SyncedLyricsView,
@@ -179,7 +180,18 @@ export function MoreDetails({ data, className }: MoreDetailsProps) {
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <Pair label="File Name" value={data?.name} />
-      <Pair label="File Path" value={data?.path} />
+      <Pair
+        label="Path"
+        value={data?.path}
+        onClick={() => {
+          if (!data?.path) return
+          const pathType = getTrackPathType(data.path)
+
+          if (pathType[0] === 'f') revealItemInDir(data.path)
+          else if (pathType[0] === 'l') openUrl(data.path)
+        }}
+      />
+
       <Pair label="Hash" value={data?.hash} />
       <Pair label="Extension" value={data?.extension} />
       {data?.rank && <Pair label="Emotion Rank" value={data.rank} />}
@@ -187,13 +199,19 @@ export function MoreDetails({ data, className }: MoreDetailsProps) {
   )
 }
 
-type PairProps = { label: string; value?: string | number | null }
+type PairProps = { label: string; value?: string | number | null; onClick?: () => void }
 
-function Pair({ label, value }: PairProps) {
+function Pair({ label, value, onClick }: PairProps) {
+  const Component = onClick ? 'button' : 'div'
+
   return (
     <div className="flex items-center text-default-500 text-tiny">
       <div className="w-36 shrink-0">{label}</div>
-      <div className="break-all">{value ?? '-'}</div>
+      <Component
+        className={cn('break-all', onClick && 'hover:text-secondary-700 transition-colors cursor-pointer')}
+        onClick={onClick}>
+        {value ?? '-'}
+      </Component>
     </div>
   )
 }

@@ -1,120 +1,124 @@
 use crate::db::{Emotion, GetTracksFilters};
-use crate::tracks::{Album, Lyrics, Track, find_artist_image};
+use crate::tracks::{Album, Lyrics, Track, TrackPath};
 use crate::{AppState, Error};
 use std::path::PathBuf;
 use tauri::State;
+use tauri_plugin_http::reqwest::Url;
 
 #[tauri::command]
-pub fn player_set_queue(state: State<AppState, '_>, queue: Vec<PathBuf>) -> Result<(), Error> {
-    state.player.lock().set_queue(queue);
+pub async fn player_set_queue(
+    state: State<AppState, '_>,
+    queue: Vec<TrackPath>,
+) -> Result<(), Error> {
+    state.player.lock().await.set_queue(queue);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_goto(state: State<AppState, '_>, index: usize) -> Result<(), Error> {
-    state.player.lock().goto(index)?;
+pub async fn player_goto(state: State<AppState, '_>, index: usize) -> Result<(), Error> {
+    state.player.lock().await.goto(index).await?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_seek(state: State<AppState, '_>, elapsed: u64) -> Result<(), Error> {
-    state.player.lock().seek(elapsed)?;
+pub async fn player_seek(state: State<AppState, '_>, elapsed: u64) -> Result<(), Error> {
+    state.player.lock().await.seek(elapsed)?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_stop(state: State<AppState, '_>) -> Result<(), Error> {
-    state.player.lock().stop();
+pub async fn player_stop(state: State<AppState, '_>) -> Result<(), Error> {
+    state.player.lock().await.stop();
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_play(state: State<AppState, '_>) -> Result<(), Error> {
-    state.player.lock().play();
+pub async fn player_play(state: State<AppState, '_>) -> Result<(), Error> {
+    state.player.lock().await.play();
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_pause(state: State<AppState, '_>) -> Result<(), Error> {
-    state.player.lock().pause();
+pub async fn player_pause(state: State<AppState, '_>) -> Result<(), Error> {
+    state.player.lock().await.pause();
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_set_current(state: State<AppState, '_>, index: usize) -> Result<(), Error> {
-    state.player.lock().set_current(index)?;
+pub async fn player_set_current(state: State<AppState, '_>, index: usize) -> Result<(), Error> {
+    state.player.lock().await.set_current(index)?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_is_paused(state: State<AppState, '_>) -> Result<bool, Error> {
-    let res = state.player.lock().is_paused();
+pub async fn player_is_paused(state: State<AppState, '_>) -> Result<bool, Error> {
+    let res = state.player.lock().await.is_paused();
 
     Ok(res)
 }
 
 #[tauri::command]
-pub fn player_set_volume(state: State<AppState, '_>, volume: f32) -> Result<(), Error> {
-    state.player.lock().set_volume(volume);
+pub async fn player_set_volume(state: State<AppState, '_>, volume: f32) -> Result<(), Error> {
+    state.player.lock().await.set_volume(volume);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn player_get_arbitrary_tracks(state: State<AppState, '_>) -> Result<Vec<Track>, Error> {
-    let res = state.player.lock().arbitrary_tracks.clone();
+pub async fn player_get_arbitrary_tracks(state: State<AppState, '_>) -> Result<Vec<Track>, Error> {
+    let res = state.player.lock().await.arbitrary_tracks.clone();
 
     Ok(res)
 }
 
 #[tauri::command]
-pub fn scrub_player_start(state: State<AppState, '_>) -> Result<(), Error> {
-    state.scrub_player.lock().start()?;
+pub async fn scrub_player_start(state: State<AppState, '_>) -> Result<(), Error> {
+    state.scrub_player.lock().await.start()?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn scrub_player_set_current(
+pub async fn scrub_player_set_current(
     state: State<AppState, '_>,
     path: Option<PathBuf>,
 ) -> Result<(), Error> {
-    state.scrub_player.lock().set_current(path);
+    state.scrub_player.lock().await.set_current(path);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn scrub_player_seek(state: State<AppState, '_>, elapsed: u64) -> Result<(), Error> {
-    state.scrub_player.lock().seek(elapsed)?;
+pub async fn scrub_player_seek(state: State<AppState, '_>, elapsed: u64) -> Result<(), Error> {
+    state.scrub_player.lock().await.seek(elapsed)?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn scrub_player_stop(state: State<AppState, '_>) -> Result<(), Error> {
-    state.scrub_player.lock().stop();
+pub async fn scrub_player_stop(state: State<AppState, '_>) -> Result<(), Error> {
+    state.scrub_player.lock().await.stop();
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn scrub_player_play(state: State<AppState, '_>) -> Result<(), Error> {
-    state.scrub_player.lock().play();
+pub async fn scrub_player_play(state: State<AppState, '_>) -> Result<(), Error> {
+    state.scrub_player.lock().await.play();
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn scrub_player_pause(state: State<AppState, '_>) -> Result<(), Error> {
-    state.scrub_player.lock().pause();
+pub async fn scrub_player_pause(state: State<AppState, '_>) -> Result<(), Error> {
+    state.scrub_player.lock().await.pause();
 
     Ok(())
 }
@@ -340,11 +344,36 @@ pub async fn db_reset(state: State<AppState, '_>) -> Result<(), Error> {
 }
 
 #[tauri::command]
-pub async fn tracks_find_artist_image(
+pub async fn streaming_scan_urls(
     state: State<AppState, '_>,
-    name: String,
-) -> Result<Option<String>, Error> {
-    let res = find_artist_image(&state.http_client, name).await?;
+    urls: Vec<Url>,
+    wipe_sources: Vec<String>,
+) -> Result<String, Error> {
+    let res = state
+        .streaming_client
+        .read()
+        .await
+        .scan_urls(&urls, &wipe_sources)
+        .await?;
 
     Ok(res)
+}
+
+#[tauri::command]
+pub async fn streaming_load_dependencies(state: State<AppState, '_>) -> Result<(), Error> {
+    state.streaming_client.write().await.load_dependencies()?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn streaming_install_dependencies(state: State<AppState, '_>) -> Result<(), Error> {
+    state
+        .streaming_client
+        .write()
+        .await
+        .install_dependencies()
+        .await?;
+
+    Ok(())
 }
