@@ -1,11 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
 
-// using snake_case for names
-type Dependencies = {
-  yt_dlp: string
-  ffmpeg: string
-}
-
 export async function loadDependencies() {
   await invoke('streaming_load_dependencies')
 }
@@ -33,4 +27,10 @@ type SearchResult = {
   views: number
   channel: string
   thumbnails: { url: string; width: number; height: number }[]
+}
+
+// using snake_case for names
+type Dependencies = {
+  yt_dlp: string
+  ffmpeg: string
 }

@@ -1,5 +1,22 @@
-import { cn, Checkbox, Chip, Input } from '@heroui/react'
-import { SearchIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { getName, getVersion } from '@tauri-apps/api/app'
+import { useStore } from 'zustand'
+import {
+  cn,
+  Checkbox,
+  Chip,
+  Input,
+  Modal,
+  Button,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Accordion,
+  AccordionItem,
+} from '@heroui/react'
+import { ArrowRightIcon, SearchIcon } from 'lucide-react'
+import { EulaCheckbox, setFirstLaunchVersion, store } from '@/settings'
 import { Player } from '@/player/components'
 import type { UseSelection } from '@/utils'
 
@@ -66,5 +83,69 @@ export function HomeScreen() {
     <div className="p-3 pt-[calc(theme(spacing.10)+theme(spacing.2))] w-full">
       <Player />
     </div>
+  )
+}
+
+export function FirstLaunchModal() {
+  const { firstLaunchVersion } = useStore(store)
+
+  const queryApp = useQuery({
+    queryKey: ['app'],
+    queryFn: async () => ({ name: await getName(), version: await getVersion() }),
+  })
+
+  return (
+    <Modal
+      radius="sm"
+      size="5xl"
+      backdrop="blur"
+      placement="bottom-center"
+      scrollBehavior="inside"
+      hideCloseButton
+      isDismissable={false}
+      isKeyboardDismissDisabled
+      isOpen={queryApp.data && firstLaunchVersion !== queryApp.data.version}>
+      <ModalContent>
+        <ModalHeader className="flex gap-2 text-xl">
+          Welcome to <div className="capitalize">{queryApp.data?.name}</div>
+        </ModalHeader>
+
+        <ModalBody>
+          <Accordion selectionMode="multiple" className="px-0" defaultExpandedKeys={['important', 'new']}>
+            <AccordionItem
+              key="important"
+              title="Important"
+              classNames={{ title: 'text-large', content: 'text-small pb-6' }}>
+              By proceeding, you affirm that
+              <ul className="font-mono leading-relaxed my-3">
+                <li>
+                  - You will use scraping/streaming features only on content you legally own or are permitted to access.
+                </li>
+                <li>- You are aware that YouTube prohibits automated download or streaming via unauthorized tools.</li>
+                <li>- You accept full responsibility for any resulting legal risk (no warranty).</li>
+              </ul>
+              If you do not agree to the EULA, you can still use the app, but you will not be able to stream from
+              YouTube. <br /> You can also accept the EULA at any time in the app settings.
+            </AccordionItem>
+            <AccordionItem
+              key="new"
+              title={"What's new in v" + queryApp.data?.version}
+              classNames={{ title: 'text-large' }}></AccordionItem>
+          </Accordion>
+        </ModalBody>
+        <ModalFooter className="justify-between">
+          <EulaCheckbox />
+
+          <Button
+            radius="sm"
+            variant="flat"
+            color="success"
+            isDisabled={!queryApp.data}
+            onPress={() => setFirstLaunchVersion(queryApp.data?.version ?? '')}>
+            Proceed <ArrowRightIcon className="text-lg" />
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }

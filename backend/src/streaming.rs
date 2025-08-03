@@ -58,7 +58,7 @@ impl StreamingClient {
                 let query = format!(
                     "ytsearch{results_count}:{}",
                     query.as_ref(),
-                    results_count = 10
+                    results_count = 25
                 );
 
                 let format = r#"{ "url": %(url)j, "title": %(title)j, "thumbnails": %(thumbnails)j, "duration": %(duration)j, "views": %(view_count)j, "channel": %(channel)j }"#;
@@ -69,6 +69,7 @@ impl StreamingClient {
                         &query,
                         "--skip-download",
                         "--flat-playlist",
+                        "--output-na-placeholder", "null",
                         "--print", format,
                     ])
                     .stdout(Stdio::piped())
