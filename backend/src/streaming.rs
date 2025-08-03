@@ -144,51 +144,23 @@ impl StreamingClient {
         let platform = self.platform.as_ref().context("Invalid Platform")?;
 
         let url = format!(
-            "https://github.com/CyanFroste/meowsic-deps/releases/download/latest/ffmpeg-{}.zip",
+            "https://github.com/CyanFroste/meowsic-deps/releases/download/latest/{}.zip",
             platform.as_str()
         );
 
         let res = self.http_client.get(&url).send().await?;
 
         if !res.status().is_success() {
-            return Err(anyhow!("failed to download ffmpeg"));
+            return Err(anyhow!("failed to download dependencies"));
         }
 
-        let archive_path = self.cache_path.join("ffmpeg.zip");
+        let archive_path = self.cache_path.join("dependencies.zip");
         fs::write(&archive_path, res.bytes().await?)?;
 
-        let extraction_path = self.cache_path.join("ffmpeg");
-        extract_zip_archive(&archive_path, &extraction_path)?;
-
-        let ffmpeg_exe = platform.normalize_executable_name("ffmpeg");
-        let yt_dlp_exe = platform.normalize_executable_name("yt-dlp");
-
-        let dependencies = Dependencies {
-            ffmpeg: self.data_path.join(&ffmpeg_exe),
-            yt_dlp: self.data_path.join(&yt_dlp_exe),
-        };
-
-        fs::copy(extraction_path.join(&ffmpeg_exe), &dependencies.ffmpeg)?;
-
+        extract_zip_archive(&archive_path, &self.data_path)?;
         fs::remove_file(&archive_path)?;
-        fs::remove_dir_all(&extraction_path)?;
 
-        let url = format!(
-            "https://github.com/CyanFroste/meowsic-deps/releases/download/latest/{}",
-            platform.normalize_executable_name(&format!("yt-dlp-{}", platform.as_str())),
-        );
-
-        let res = self.http_client.get(&url).send().await?;
-
-        if !res.status().is_success() {
-            return Err(anyhow!("failed to download yt-dlp"));
-        }
-
-        fs::write(&dependencies.yt_dlp, res.bytes().await?)?;
-
-        self.dependencies = Some(dependencies);
-
-        Ok(())
+        self.load_dependencies()
     }
 
     // infallible since this feature is optional

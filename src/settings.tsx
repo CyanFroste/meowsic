@@ -172,13 +172,13 @@ export function SettingsScreen() {
         </Button>
 
         <hr className="w-full mt-3 border-default/30" />
-        <div className="text-large mt-2">External Sources</div>
+        <div className="text-large mt-2">Streaming</div>
 
         {state.isEulaAccepted ? (
           <div className="text-small mb-4 text-default-500 leading-relaxed">
             {queryDependencies.isSuccess && queryDependencies.data ? (
               <>
-                You are able to stream and save tracks from external sources. <br />
+                You can now stream and save tracks from external sources. <br />
                 <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are installed.
               </>
             ) : (
@@ -378,20 +378,20 @@ export function SettingsScreen() {
 
             <button
               onClick={() => openUrl('https://github.com/CyanFroste/meowsic/blob/master/LICENSE')}
-              className="self-start text-secondary-700 cursor-pointer mb-6">
+              className="self-start text-secondary-700 cursor-pointer">
               View full license
             </button>
-
-            <EulaCheckbox className="mb-4" />
 
             <Button
               radius="sm"
               variant="flat"
-              className="self-start"
+              className="self-start my-6"
               onPress={() => openUrl('https://github.com/CyanFroste/meowsic')}>
               <img height="24" width="24" src="https://cdn.simpleicons.org/github/white" className="size-6" />
               View source code
             </Button>
+
+            <EulaCheckbox className="mb-3" />
           </div>
         )}
       </div>
