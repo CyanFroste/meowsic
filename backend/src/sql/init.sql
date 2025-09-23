@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS dirs (
 
 CREATE TABLE IF NOT EXISTS tracks (                
     hash            TEXT        PRIMARY KEY,
+    source          TEXT        NOT NULL,
     path            TEXT        NOT NULL,
     name            TEXT        NOT NULL,
     extension       TEXT        NOT NULL,

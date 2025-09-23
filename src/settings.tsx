@@ -15,8 +15,10 @@ import {
   SelectItem,
   Slider,
   useDisclosure,
+  Checkbox,
+  cn,
 } from '@heroui/react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { getName, getVersion } from '@tauri-apps/api/app'
 import { revealItemInDir, openUrl } from '@tauri-apps/plugin-opener'
@@ -29,11 +31,13 @@ import {
   FileScanIcon,
   HeartIcon,
   ListRestartIcon,
+  PackageIcon,
   PlusIcon,
   ShieldAlertIcon,
   XIcon,
 } from 'lucide-react'
 import { setVolume as setPlayerVolume } from '@/player'
+import { installDependencies, getDependencies } from '@/streaming'
 
 const FONTS = ['Inter', 'Poppins', 'Merriweather', 'Dancing Script']
 
@@ -50,6 +54,8 @@ export function SettingsScreen() {
     queryKey: ['app'],
     queryFn: async () => ({ name: await getName(), version: await getVersion() }),
   })
+
+  const queryDependencies = useQuery({ queryKey: ['dependencies'], queryFn: getDependencies })
 
   const mutationScan = useMutation({
     mutationFn: scanDirs,
@@ -98,6 +104,21 @@ export function SettingsScreen() {
       queryDirs.refetch()
     },
   })
+
+  const mutationInstallDependencies = useMutation({
+    mutationKey: ['install-dependencies'],
+    mutationFn: installDependencies,
+    onSuccess: () => {
+      // NOTE: the promise toast won't go away otherwise
+      setTimeout(() => addToast({ timeout: 5000, color: 'success', title: 'Dependencies Installed Successfully' }), 100)
+      queryDependencies.refetch()
+    },
+  })
+
+  const mutationInstallDependenciesState = useMutationState({
+    filters: { mutationKey: ['install-dependencies'], exact: true },
+    select: m => m.state,
+  })[0]
 
   return (
     <div className="p-3 pt-[calc(theme(spacing.10)+theme(spacing.3))] overflow-auto w-full">
@@ -151,6 +172,67 @@ export function SettingsScreen() {
         </Button>
 
         <hr className="w-full mt-3 border-default/30" />
+        <div className="text-large mt-2">Streaming</div>
+
+        <div className="text-small mb-4 text-default-500 leading-relaxed">
+          {!state.isEulaAccepted && (
+            <>
+              You need to accept the
+              <button
+                className="mx-1.5 text-foreground cursor-pointer font-medium"
+                onClick={() => document.querySelector('#eula-checkbox')?.scrollIntoView({ behavior: 'smooth' })}>
+                End User License Agreement
+              </button>
+              first to fully utilize this feature. <br />
+            </>
+          )}
+
+          {queryDependencies.isSuccess && queryDependencies.data ? (
+            <>
+              You can now stream and save tracks from external sources.
+              <br /> <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are installed.
+            </>
+          ) : (
+            <>
+              To stream and save tracks from external sources, you need to install the required dependencies first.
+              <br /> <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are not installed.
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {queryDependencies.isSuccess && (
+            <>
+              {queryDependencies.data ? (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  onPress={() => {
+                    if (queryDependencies.data) revealItemInDir(queryDependencies.data?.ffmpeg)
+                  }}>
+                  <PackageIcon className="text-lg" /> Locate Dependencies
+                </Button>
+              ) : (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  isLoading={mutationInstallDependenciesState?.status === 'pending'}
+                  onPress={() => {
+                    addToast({
+                      title: 'Installing Dependencies',
+                      description: 'Please wait. This may take a few minutes.',
+                      promise: mutationInstallDependencies.mutateAsync(),
+                      timeout: 1, // TODO: ? possible to change state from within ?
+                    })
+                  }}>
+                  <PackageIcon className="text-lg" /> Install Dependencies
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        <hr className="w-full mt-3 border-default/30" />
         <div className="text-large my-2">Appearance</div>
 
         <Slider
@@ -186,7 +268,7 @@ export function SettingsScreen() {
 
         <hr className="w-full mt-3 border-default/30" />
 
-        <Accordion className="px-0" defaultExpandedKeys={['list']}>
+        <Accordion className="px-0">
           <AccordionItem key="list" title="Key Bindings" classNames={{ title: 'text-large', trigger: 'py-2' }}>
             <KeyBindings />
           </AccordionItem>
@@ -294,21 +376,43 @@ export function SettingsScreen() {
 
             <button
               onClick={() => openUrl('https://github.com/CyanFroste/meowsic/blob/master/LICENSE')}
-              className="self-start text-secondary-700 mb-6 cursor-pointer">
+              className="self-start text-secondary-700 cursor-pointer">
               View full license
             </button>
 
             <Button
               radius="sm"
               variant="flat"
-              className="self-start"
+              className="self-start my-6"
               onPress={() => openUrl('https://github.com/CyanFroste/meowsic')}>
               <img height="24" width="24" src="https://cdn.simpleicons.org/github/white" className="size-6" />
               View source code
             </Button>
+
+            <EulaCheckbox className="mb-3" />
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+type EulaCheckboxProps = { className?: string }
+
+export function EulaCheckbox({ className }: EulaCheckboxProps) {
+  const { isEulaAccepted } = useStore(store)
+
+  return (
+    <div id="eula-checkbox" className={cn('flex items-center gap-1', className)}>
+      <Checkbox color="warning" radius="full" isSelected={isEulaAccepted} onValueChange={setIsEulaAccepted}>
+        I agree to the
+      </Checkbox>
+
+      <button
+        onClick={() => openUrl('https://github.com/CyanFroste/meowsic/blob/master/EULA.md')}
+        className="text-warning-700 cursor-pointer font-medium text-base">
+        End User License Agreement
+      </button>
     </div>
   )
 }
@@ -344,6 +448,8 @@ type Store = {
   fontFamily: string
   fontSize: number
   volume: number
+  isEulaAccepted: boolean
+  firstLaunchVersion: string
 }
 
 // had to put this in a fn because false is not assignable to boolean? WTF?
@@ -355,6 +461,8 @@ function initialState(): Store {
     fontFamily: 'Poppins',
     fontSize: 16,
     volume: 1,
+    isEulaAccepted: false,
+    firstLaunchVersion: '',
   }
 }
 
@@ -375,6 +483,14 @@ export function setMiniPlayerVisibility(isVisible: boolean) {
 
 export async function setEmotion(name: string) {
   store.setState({ currentEmotion: name })
+}
+
+function setIsEulaAccepted(isAccepted: boolean) {
+  store.setState({ isEulaAccepted: isAccepted })
+}
+
+export function setFirstLaunchVersion(version: string) {
+  store.setState({ firstLaunchVersion: version })
 }
 
 store.subscribe(init)

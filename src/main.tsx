@@ -28,6 +28,7 @@ import { TracksScreen } from '@/tracks/components'
 import { TrackScreen } from '@/tracks/components/details'
 import { PlaylistsScreen, PlaylistScreen } from '@/playlists/components'
 import { EmotionsScreen, EmotionScreen } from '@/emotions/components'
+import { StreamingScreen, StreamYouTubeScreen } from '@/streaming/components'
 import { QueueScreen } from '@/queue'
 import { AlbumsScreen } from '@/albums'
 import { ArtistsScreen } from '@/artists'
@@ -51,6 +52,8 @@ const router = createBrowserRouter([
       { path: '/albums', Component: AlbumsScreen },
       { path: '/artists', Component: ArtistsScreen },
       { path: '/settings', Component: SettingsScreen },
+      { path: '/streaming', Component: StreamingScreen },
+      { path: '/streaming/youtube', Component: StreamYouTubeScreen },
     ],
   },
 ])

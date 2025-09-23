@@ -1,6 +1,5 @@
 use crate::tracks;
 use crate::tracks::{Album, Lyrics, Track};
-use crate::utils;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
@@ -13,6 +12,7 @@ use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions as ZipFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
+#[derive(Debug, Clone)]
 pub struct Db {
     pub covers_path: PathBuf,
     pool: Pool<Sqlite>,
@@ -46,7 +46,7 @@ impl Db {
             qb.push(" AND t.artist = ").push_bind(artist);
         }
 
-        qb.push(" ORDER BY t.name ASC");
+        qb.push(" ORDER BY COALESCE(t.title, t.name) ASC");
 
         let entries: Vec<TrackRow> = qb.build_query_as().fetch_all(&self.pool).await?;
         let tracks = entries.into_iter().map(Track::from).collect();
@@ -77,17 +77,39 @@ impl Db {
     }
 
     pub async fn scan_dirs(&self, dirs: &[impl AsRef<Path>]) -> Result<String> {
-        let (tracks, errors) = tracks::scan(dirs, &self.covers_path)?;
+        let (tracks, errors) = tracks::from_dirs(dirs, &self.covers_path)?;
         let total = tracks.len() + errors.len();
+
+        self.insert_tracks(tracks, &[tracks::DEFAULT_SOURCE])
+            .await?;
+
+        // simple result format to show in the UI
+        Ok(format!(
+            "{}\n\nScanned {total} tracks with {} errors.",
+            errors.join("\n"),
+            errors.len(),
+        ))
+    }
+
+    /// lower level method to insert tracks into the database, optionally wiping the provided sources first
+    pub async fn insert_tracks(
+        &self,
+        tracks: Vec<Track>,
+        wipe_sources: &[impl AsRef<str>],
+    ) -> Result<()> {
+        if tracks.is_empty() {
+            return Ok(());
+        }
 
         let mut qb = QueryBuilder::new(
             "INSERT OR IGNORE INTO tracks 
-            (hash, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre) ",
+            (hash, source, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre) ",
         );
 
         qb.push_values(tracks.into_iter().take(32000), |mut b, track| {
             b.push_bind(track.hash)
-                .push_bind(track.path.to_string_lossy().to_string())
+                .push_bind(track.source)
+                .push_bind(track.path.to_string())
                 .push_bind(track.name)
                 .push_bind(track.extension)
                 .push_bind(track.duration as i64)
@@ -102,16 +124,23 @@ impl Db {
 
         let mut tx = self.pool.begin().await?;
 
-        sqlx::query("DELETE FROM tracks").execute(&mut *tx).await?;
+        if !wipe_sources.is_empty() {
+            let mut qb: QueryBuilder<Sqlite> =
+                QueryBuilder::new("DELETE FROM tracks WHERE source IN (");
+            let mut separated = qb.separated(", ");
+
+            for source in wipe_sources.iter().take(32000) {
+                separated.push_bind(source.as_ref());
+            }
+
+            qb.push(")");
+            qb.build().execute(&mut *tx).await?;
+        }
+
         qb.build().execute(&mut *tx).await?;
         tx.commit().await?;
 
-        // simple result format to show in the UI
-        Ok(format!(
-            "{}\n\nScanned {total} tracks with {} errors.",
-            errors.join("\n"),
-            errors.len(),
-        ))
+        Ok(())
     }
 
     pub async fn get_playlists(&self) -> Result<Vec<String>> {
@@ -522,10 +551,9 @@ impl Db {
                     let mut map = HashMap::new();
 
                     for json in list {
-                        if let (Some(file_name), Some(position)) =
-                            (json["file_name"].as_str(), json["position"].as_i64())
+                        if let (Some(hash), Some(position)) =
+                            (json["hash"].as_str(), json["position"].as_i64())
                         {
-                            let hash = utils::hash(file_name.as_bytes());
                             map.insert(hash, position);
                         }
                     }
@@ -562,10 +590,9 @@ impl Db {
                     let mut map = HashMap::new();
 
                     for json in list {
-                        if let (Some(file_name), Some(rank)) =
-                            (json["file_name"].as_str(), json["rank"].as_i64())
+                        if let (Some(hash), Some(rank)) =
+                            (json["hash"].as_str(), json["rank"].as_i64())
                         {
-                            let hash = utils::hash(file_name.as_bytes());
                             map.insert(hash, rank);
                         }
                     }
@@ -587,21 +614,19 @@ impl Db {
             } else if file.name().starts_with("tracks_extended") {
                 let data: Vec<JsonValue> = serde_json::from_reader(file)?;
 
-                let mut lyrics_map: HashMap<String, Lyrics> = HashMap::new();
+                let mut lyrics_map: HashMap<&str, Lyrics> = HashMap::new();
                 let mut rules_map = HashMap::new();
 
-                for item in data {
+                for item in &data {
                     match (
-                        item["file_name"].as_str(),
+                        item["hash"].as_str(),
                         serde_json::from_value(item["lyrics"].clone()),
                         item["rules"].as_str(),
                     ) {
-                        (Some(file_name), Err(_), Some(rules)) => {
-                            let hash = utils::hash(file_name.as_bytes());
+                        (Some(hash), Err(_), Some(rules)) => {
                             rules_map.insert(hash, rules.to_string());
                         }
-                        (Some(file_name), Ok(lyrics), None) => {
-                            let hash = utils::hash(file_name.as_bytes());
+                        (Some(hash), Ok(lyrics), None) => {
                             lyrics_map.insert(hash, lyrics);
                         }
                         _ => {}
@@ -643,9 +668,9 @@ impl Db {
         let mut zip = ZipWriter::new(file);
 
         for (index, playlist) in self.get_playlists().await?.iter().enumerate() {
-            let list: Vec<(String, String, i64)> = sqlx::query_as(
+            let list: Vec<(String, String, String, i64)> = sqlx::query_as(
                 "
-                SELECT t.name, t.extension, pt.position
+                SELECT t.hash, t.path, t.name, pt.position
                 FROM tracks AS t
                 JOIN playlist_tracks AS pt ON pt.track_hash = t.hash
                 WHERE pt.playlist_name = $1                
@@ -661,8 +686,10 @@ impl Db {
 
             let data = json!({
                 "name": playlist,
-                "list": list.into_iter().map(|(name, extension, position)| json!({
-                    "file_name": format!("{name}.{extension}"),
+                "list": list.into_iter().map(|(hash, path, name, position)| json!({
+                    "hash": hash,
+                    "path": path,
+                    "name": name,
                     "position": position
                 })).collect::<Vec<_>>(),
             });
@@ -674,9 +701,9 @@ impl Db {
         for emotion in self.get_emotions().await? {
             let name = emotion.name;
 
-            let list: Vec<(String, String, i64)> = sqlx::query_as(
+            let list: Vec<(String, String, String, i64)> = sqlx::query_as(
                 "
-                SELECT t.name, t.extension, et.rank
+                SELECT t.hash, t.path, t.name, et.rank
                 FROM tracks AS t
                 JOIN emotion_tracks AS et ON et.track_hash = t.hash
                 WHERE et.emotion_name = $1                
@@ -692,8 +719,10 @@ impl Db {
 
             let data = json!({
                 "name": name,
-                "list": list.into_iter().map(|(name, extension, rank)| json!({
-                    "file_name": format!("{name}.{extension}"),
+                "list": list.into_iter().map(|(hash, path, name, rank)| json!({
+                    "hash": hash,
+                    "path": path,
+                    "name": name,
                     "rank": rank
                 })).collect::<Vec<_>>(),
             });
@@ -705,8 +734,9 @@ impl Db {
         let list: Vec<TrackExtendedRow> = sqlx::query_as(
             "
             SELECT
+                t.hash AS hash,
+                t.path AS path,
                 t.name AS name,
-                t.extension AS extension,
                 l.plain AS plain_lyrics,
                 l.synced AS synced_lyrics,
                 r.rules AS rules
@@ -723,7 +753,9 @@ impl Db {
         if !list.is_empty() {
             let data = list.into_iter().map(|item| {
                 json!({
-                    "file_name": format!("{}.{}", item.name, item.extension),
+                    "hash": item.hash,
+                    "path": item.path,
+                    "name": item.name,
                     "rules": item.rules.filter(|x| !x.trim().is_empty()),
                     "lyrics": (item.plain_lyrics.is_some() || item.synced_lyrics.is_some()).then(|| {
                         Lyrics {
@@ -773,6 +805,7 @@ pub struct TrackRow {
     pub name: String,
     pub extension: String,
     pub duration: i64,
+    pub source: String,
     pub cover: Option<String>,
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -789,8 +822,9 @@ pub struct TrackRow {
 
 #[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
 pub struct TrackExtendedRow {
+    pub hash: String,
+    pub path: String,
     pub name: String,
-    pub extension: String,
     pub plain_lyrics: Option<String>,
     pub synced_lyrics: Option<String>,
     pub rules: Option<String>,
