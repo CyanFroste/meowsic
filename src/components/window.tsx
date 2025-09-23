@@ -179,14 +179,15 @@ export function Window() {
         {showBars && (
           <div className="flex flex-col gap-2 p-3 pt-[calc(theme(spacing.10)+theme(spacing.3))] h-full w-44">
             <NavLink url="/tracks" title="Tracks" icon={MusicIcon} />
-            <NavLink url="/playlists" title="Playlists" icon={ListMusicIcon} />
             <NavLink url="/queue" title="Queue" icon={ListVideoIcon} />
+            <NavLink url="/playlists" title="Playlists" icon={ListMusicIcon} />
 
             <hr className="border-default/30 mx-2" />
-
             <NavLink url="/albums" title="Albums" icon={Disc3Icon} />
-            <NavLink url="/emotions" title="Emotions" icon={SmileIcon} />
             <NavLink url="/artists" title="Artists" icon={UserRoundIcon} />
+
+            <hr className="border-default/30 mx-2" />
+            <NavLink url="/emotions" title="Emotions" icon={SmileIcon} />
 
             <NavLink url="/settings" title="Settings" icon={SettingsIcon} className="mt-auto" />
           </div>

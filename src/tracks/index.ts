@@ -18,6 +18,7 @@ export type Track = {
   position?: number | null
   rank?: number | null
   rules?: string | null
+  number?: number | null
 }
 
 type GetTracksFilters = {
@@ -54,8 +55,8 @@ export function normalizeMeta(track?: Track | null) {
 export function createSearchIndex() {
   return new MiniSearch({
     idField: 'hash',
-    fields: ['title', 'album', 'artist', 'genre'],
+    fields: ['title', 'name', 'album', 'artist', 'genre'],
     storeFields: ['hash'],
-    searchOptions: { boost: { title: 2, album: 1, artist: 1 }, prefix: true, fuzzy: true },
+    searchOptions: { boost: { title: 2 }, prefix: true, fuzzy: true },
   })
 }

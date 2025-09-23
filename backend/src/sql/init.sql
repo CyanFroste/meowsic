@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS tracks (
     album           TEXT,
     album_artist    TEXT,
     date            TEXT,
-    genre           TEXT
+    genre           TEXT,
+    number          INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS playlists (

@@ -1,5 +1,5 @@
 use crate::db::{Emotion, GetTracksFilters};
-use crate::tracks::{Album, Lyrics, Track, find_artist_image};
+use crate::tracks::{Album, Lyrics, Track};
 use crate::{AppState, Error};
 use std::path::PathBuf;
 use tauri::State;
@@ -337,14 +337,4 @@ pub async fn db_reset(state: State<AppState, '_>) -> Result<(), Error> {
     state.db.reset().await?;
 
     Ok(())
-}
-
-#[tauri::command]
-pub async fn tracks_find_artist_image(
-    state: State<AppState, '_>,
-    name: String,
-) -> Result<Option<String>, Error> {
-    let res = find_artist_image(&state.http_client, name).await?;
-
-    Ok(res)
 }

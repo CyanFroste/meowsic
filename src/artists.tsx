@@ -1,6 +1,5 @@
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { invoke } from '@tauri-apps/api/core'
 import { Card as ExternalCard, CardFooter } from '@heroui/react'
 import { UserRoundIcon } from 'lucide-react'
 import { getArtists } from '@/tracks'
@@ -21,13 +20,6 @@ export function ArtistsScreen() {
 type CardProps = { data: string }
 
 function Card({ data }: CardProps) {
-  const queryCover = useQuery({
-    queryKey: ['artist-cover', data],
-    queryFn: () => findArtistImage(data),
-    enabled: false,
-    retry: 1,
-  })
-
   return (
     <ExternalCard
       as={Link}
@@ -36,15 +28,11 @@ function Card({ data }: CardProps) {
       shadow="none"
       to={`/tracks?artist=${data}`}
       className="aspect-square bg-transparent group">
-      <Cover className="size-full rounded-none" external url={queryCover.data} placeholder={UserRoundIcon} />
+      <Cover className="size-full rounded-none" placeholder={UserRoundIcon} />
 
       <CardFooter className="absolute bg-background/60 bottom-0 z-10 py-2 px-3 max-h-10 group-hover:max-h-full transition-[max-height]">
         <div className="text-small line-clamp-1 group-hover:line-clamp-none">{data}</div>
       </CardFooter>
     </ExternalCard>
   )
-}
-
-export async function findArtistImage(name: string) {
-  return await invoke<string | null>('tracks_find_artist_image', { name })
 }

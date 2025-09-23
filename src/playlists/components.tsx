@@ -199,7 +199,7 @@ export function PlaylistScreen() {
             data={item}
             onPlay={onPlay}
             isSelected={selection.isSelected(item)}
-            isPlaying={player.current === item}
+            isPlaying={player.current?.hash === item.hash}
             onToggleSelect={selection.toggle}
             draggableProps={draggableProps}
             onShowDetails={trackDetails.show}
