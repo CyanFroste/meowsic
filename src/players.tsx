@@ -16,8 +16,8 @@ export class MediaPlayer {
     })
   }
 
-  load(src: string | null, external?: boolean) {
-    this.core.src = src ? (external ? src : getAssetUrl(src)) : ''
+  load(src: string | null) {
+    this.core.src = src ? getAssetUrl(src) : ''
     this.core.load()
   }
 

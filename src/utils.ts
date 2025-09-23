@@ -3,8 +3,8 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { useDisclosure } from '@heroui/react'
 
 export function getAssetUrl(path: string) {
-  // return `http://asset.localhost/${path}`
-  return convertFileSrc(path)
+  if (path.startsWith('http')) return path
+  return convertFileSrc(path) // return `http://asset.localhost/${path}`
 }
 
 export function formatTime(value?: number | null): string {

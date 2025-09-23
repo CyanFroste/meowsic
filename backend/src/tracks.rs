@@ -11,7 +11,6 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::{MetadataOptions, StandardTagKey, StandardVisualKey};
 use symphonia::core::probe::Hint;
 use symphonia::default::get_probe;
-use tauri_plugin_http::reqwest::Client as HttpClient;
 use walkdir::WalkDir;
 
 #[skip_serializing_none]
@@ -33,6 +32,7 @@ pub struct Track {
     pub position: Option<u64>,
     pub rank: Option<u64>,
     pub rules: Option<String>,
+    pub number: Option<u64>,
 }
 
 impl Track {
@@ -105,6 +105,19 @@ impl Track {
                             AlbumArtist => data.album_artist = Some(tag.value.to_string()),
                             Date => data.date = Some(tag.value.to_string()),
                             Genre => data.genre = Some(tag.value.to_string()),
+                            TrackNumber => {
+                                use symphonia::core::meta::Value::*;
+
+                                data.number = match tag.value {
+                                    SignedInt(n) => n.try_into().ok(),
+                                    UnsignedInt(n) => Some(n),
+                                    String(ref s) => s.parse().ok().or_else(|| {
+                                        // sometimes this is a string like "1/2"
+                                        s.split('/').next().and_then(|x| x.parse().ok())
+                                    }),
+                                    _ => None,
+                                };
+                            }
                             _ => {}
                         }
                     }
@@ -141,7 +154,7 @@ impl Track {
     }
 }
 
-pub fn scan(
+pub fn from_dirs(
     dirs: &[impl AsRef<Path>],
     covers_path: impl AsRef<Path>,
 ) -> Result<(Vec<Track>, Vec<String>)> {
@@ -193,6 +206,7 @@ impl From<TrackRow> for Track {
             date: row.date,
             genre: row.genre,
             rules: row.rules,
+            number: row.number.and_then(|x| x.try_into().ok()),
             position: row.position.and_then(|x| x.try_into().ok()),
             rank: row.rank.and_then(|x| x.try_into().ok()),
         }
@@ -209,37 +223,4 @@ pub struct Album {
 pub struct Lyrics {
     pub plain: String,
     pub synced: String,
-}
-
-pub async fn find_artist_image(
-    _http_client: &HttpClient,
-    _name: impl AsRef<str>,
-) -> Result<Option<String>> {
-    // let url = format!(
-    //     "http://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist={name}&api_key={api_key}&format=json",
-    //     api_key = "",
-    //     name = name.as_ref()
-    // );
-
-    // let data: JsonValue = http_client.get(&url).send().await?.json().await?;
-    // let mbid = data["artist"]["mbid"].as_str().unwrap_or_default();
-
-    // let url = format!("https://musicbrainz.org/ws/2/artist/{mbid}?inc=url-rels&fmt=json");
-    // let data: JsonValue = http_client.get(&url).send().await?.json().await?;
-
-    // let url = data["relations"]
-    //     .as_array()
-    //     .and_then(|x| x.iter().find(|it| it["type"].as_str() == Some("image")))
-    //     .and_then(|it| it["url"]["resource"].as_str())
-    //     .map(|x| x.to_string());
-
-    // let url = url
-    //     .filter(|x| x.starts_with("https://commons.wikimedia.org/wiki/File:"))
-    //     .map(|x| {
-    //         "https://commons.wikimedia.org/wiki/Special:Redirect/file".to_string()
-    //             + &x[x.rfind('/').unwrap_or(0)..]
-    //     });
-
-    // Ok(url)
-    Ok(None)
 }

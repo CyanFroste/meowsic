@@ -58,21 +58,32 @@ export function TracksScreen() {
     queryFn: async () => await getTracks({ album, artist }),
   })
 
+  const sort = (tracks: Track[] = []) => {
+    if (!album) return tracks
+
+    return tracks.sort((a, b) => {
+      if (!a.number && !b.number) return 0
+      if (!a.number && a.number !== 0) return 1
+      if (!b.number && b.number !== 0) return -1
+      return a.number - b.number
+    })
+  }
+
   const map = new Map(query.data?.map(t => [t.hash, t]) ?? [])
-  const [filtered, setFiltered] = useState(query.data ?? [])
+  const [filtered, setFiltered] = useState(() => sort(query.data))
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery] = useDebounce(searchQuery, 500)
 
   useEffect(() => {
-    if (!debouncedSearchQuery.trim()) return setFiltered(query.data ?? [])
+    if (!debouncedSearchQuery.trim()) return setFiltered(sort(query.data))
 
     const data = searchIndex
       .search(debouncedSearchQuery)
       .map(it => map.get(it.id))
       .filter(Boolean) as Track[]
 
-    setFiltered(data)
+    setFiltered(sort(data))
   }, [query.data, debouncedSearchQuery])
 
   useEffect(() => {
@@ -143,9 +154,8 @@ export function TracksScreen() {
                       key={name}
                       onPress={async () => {
                         await addPlaylistTracks(name, selection.values)
-
                         selection.clear()
-                        navigate(`/playlists/${name}`)
+                        // navigate(`/playlists/${name}`)
                       }}>
                       {name}
                     </DropdownItem>
@@ -211,7 +221,7 @@ export function TracksScreen() {
             data={item}
             onPlay={onPlay}
             isSelected={selection.isSelected(item)}
-            isPlaying={player.current === item}
+            isPlaying={player.current?.hash === item.hash}
             onToggleSelect={selection.toggle}
             draggableProps={draggableProps}
             onShowDetails={trackDetails.show}
@@ -226,10 +236,9 @@ export function TracksScreen() {
         onAction={async name => {
           await addPlaylist(name)
           await addPlaylistTracks(name, selection.values)
-
           playlistEditorModal.onClose()
           selection.clear()
-          navigate(`/playlists/${name}`)
+          // navigate(`/playlists/${name}`)
         }}
       />
     </div>

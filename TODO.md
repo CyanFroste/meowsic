@@ -10,6 +10,7 @@
 - [ ] playlist import/export as m3u
 - [ ] remove single track from queue
 - [ ] guides, shortcuts section, what's new popup
+- [x] track number sorting for albums
 - [x] backup/restore/reset
 - [x] playback rules
 - [x] lyrics manager
@@ -37,6 +38,7 @@
 - [ ] optimizations (memo, etc.)
 - [ ] better animations
 - [ ] better logo
+- [x] current track highlighted on queue, tracks and playlists
 - [x] optimization of grid by arranging grid cols as fixed height rows
 - [x] accessible download links in README
 - [x] handle playback errors

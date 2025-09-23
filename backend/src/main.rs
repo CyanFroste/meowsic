@@ -15,7 +15,6 @@ use rodio::{OutputStream, Sink};
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{Builder, Emitter, Manager};
-use tauri_plugin_http::reqwest::Client as HttpClient;
 use tokio::runtime::Handle as RuntimeHandle;
 use tracks::Track;
 
@@ -58,19 +57,10 @@ async fn main() -> Result<()> {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
-            let tauri::Config {
-                product_name,
-                version,
-                ..
-            } = app.config();
+            let tauri::Config { product_name, .. } = app.config();
 
             let name = product_name.as_deref().unwrap_or(env!("CARGO_PKG_NAME"));
-            let version = version.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"));
             let data_path = app.path().document_dir()?.join(name);
-
-            let http_client = HttpClient::builder()
-                .user_agent(format!("{name}/{version}"))
-                .build()?;
 
             let covers_path = data_path.join("covers");
             let db = Db::new(data_path.join(format!("{name}.db")), &covers_path);
@@ -85,7 +75,6 @@ async fn main() -> Result<()> {
             }
 
             app.manage(AppState {
-                http_client,
                 player,
                 scrub_player,
                 db,
@@ -134,7 +123,6 @@ async fn main() -> Result<()> {
             commands::db_backup,
             commands::db_restore,
             commands::db_reset,
-            commands::tracks_find_artist_image,
         ])
         .run(tauri::generate_context!())?;
 
@@ -142,7 +130,6 @@ async fn main() -> Result<()> {
 }
 
 struct AppState {
-    http_client: HttpClient,
     player: Arc<Mutex<Player>>,
     scrub_player: Arc<Mutex<ScrubPlayer>>,
     db: Db,

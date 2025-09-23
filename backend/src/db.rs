@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions as ZipFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
+#[derive(Debug, Clone)]
 pub struct Db {
     pub covers_path: PathBuf,
     pool: Pool<Sqlite>,
@@ -46,7 +47,7 @@ impl Db {
             qb.push(" AND t.artist = ").push_bind(artist);
         }
 
-        qb.push(" ORDER BY t.name ASC");
+        qb.push(" ORDER BY COALESCE(t.title, t.name) ASC");
 
         let entries: Vec<TrackRow> = qb.build_query_as().fetch_all(&self.pool).await?;
         let tracks = entries.into_iter().map(Track::from).collect();
@@ -77,34 +78,37 @@ impl Db {
     }
 
     pub async fn scan_dirs(&self, dirs: &[impl AsRef<Path>]) -> Result<String> {
-        let (tracks, errors) = tracks::scan(dirs, &self.covers_path)?;
+        let (tracks, errors) = tracks::from_dirs(dirs, &self.covers_path)?;
         let total = tracks.len() + errors.len();
 
-        let mut qb = QueryBuilder::new(
-            "INSERT OR IGNORE INTO tracks 
-            (hash, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre) ",
-        );
+        if !tracks.is_empty() {
+            let mut qb = QueryBuilder::new(
+                "INSERT OR IGNORE INTO tracks 
+                (hash, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre, number) ",
+            );
 
-        qb.push_values(tracks.into_iter().take(32000), |mut b, track| {
-            b.push_bind(track.hash)
-                .push_bind(track.path.to_string_lossy().to_string())
-                .push_bind(track.name)
-                .push_bind(track.extension)
-                .push_bind(track.duration as i64)
-                .push_bind(track.cover.map(|p| p.to_string_lossy().to_string()))
-                .push_bind(track.title)
-                .push_bind(track.artist)
-                .push_bind(track.album)
-                .push_bind(track.album_artist)
-                .push_bind(track.date)
-                .push_bind(track.genre);
-        });
+            qb.push_values(tracks.into_iter().take(32000), |mut b, track| {
+                b.push_bind(track.hash)
+                    .push_bind(track.path.to_string_lossy().to_string())
+                    .push_bind(track.name)
+                    .push_bind(track.extension)
+                    .push_bind(track.duration as i64)
+                    .push_bind(track.cover.map(|p| p.to_string_lossy().to_string()))
+                    .push_bind(track.title)
+                    .push_bind(track.artist)
+                    .push_bind(track.album)
+                    .push_bind(track.album_artist)
+                    .push_bind(track.date)
+                    .push_bind(track.genre)
+                    .push_bind(track.number.map(|x| x as i64));
+            });
 
-        let mut tx = self.pool.begin().await?;
+            let mut tx = self.pool.begin().await?;
 
-        sqlx::query("DELETE FROM tracks").execute(&mut *tx).await?;
-        qb.build().execute(&mut *tx).await?;
-        tx.commit().await?;
+            sqlx::query("DELETE FROM tracks").execute(&mut *tx).await?;
+            qb.build().execute(&mut *tx).await?;
+            tx.commit().await?;
+        }
 
         // simple result format to show in the UI
         Ok(format!(
@@ -781,6 +785,7 @@ pub struct TrackRow {
     pub date: Option<String>,
     pub genre: Option<String>,
     pub rules: Option<String>,
+    pub number: Option<i64>,
     #[sqlx(default)]
     pub position: Option<i64>,
     #[sqlx(default)]

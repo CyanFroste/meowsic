@@ -86,7 +86,7 @@ export function QueueScreen() {
             index={index}
             data={item}
             isSelected={selection.isSelected(item)}
-            isPlaying={player.current === item}
+            isPlaying={player.current?.hash === item.hash}
             onToggleSelect={selection.toggle}
             draggableProps={draggableProps}
             onShowDetails={trackDetails.show}
