@@ -108,11 +108,10 @@ type CoverProps = {
   url?: string | null
   className?: string
   placeholder?: LucideIcon | (() => React.ReactNode)
-  external?: boolean
   onClick?: () => void
 }
 
-export function Cover({ url, className, placeholder: Placeholder = MusicIcon, external, onClick }: CoverProps) {
+export function Cover({ url, className, onClick, placeholder: Placeholder = MusicIcon }: CoverProps) {
   const Component = onClick ? 'button' : 'div'
 
   return (
@@ -127,7 +126,7 @@ export function Cover({ url, className, placeholder: Placeholder = MusicIcon, ex
           width="100%"
           height="100%"
           loading="lazy"
-          src={external ? url : getAssetUrl(url)}
+          src={getAssetUrl(url)}
           classNames={{ wrapper: 'size-full', img: 'size-full object-contain' }}
         />
       ) : (

@@ -361,6 +361,22 @@ pub async fn streaming_search(
 }
 
 #[tauri::command]
+pub async fn streaming_get_tracks(
+    state: State<AppState, '_>,
+    source: String,
+    urls: Vec<Url>,
+) -> Result<Vec<Track>, Error> {
+    let res = state
+        .streaming_client
+        .read()
+        .await
+        .get_tracks(&source, &urls)
+        .await?;
+
+    Ok(res)
+}
+
+#[tauri::command]
 pub async fn streaming_scan_urls(
     state: State<AppState, '_>,
     urls: Vec<Url>,

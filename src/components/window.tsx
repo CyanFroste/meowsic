@@ -191,8 +191,8 @@ export function Window() {
 
             <hr className="border-default/30 mx-2" />
 
-            <NavLink url="/streaming" title="Streaming" icon={GlobeIcon} />
             <NavLink url="/emotions" title="Emotions" icon={SmileIcon} />
+            <NavLink url="/streaming" title="Streaming" icon={GlobeIcon} />
 
             <NavLink url="/settings" title="Settings" icon={SettingsIcon} className="mt-auto" />
           </div>
@@ -203,7 +203,6 @@ export function Window() {
 
       {showMiniPlayer && <MiniPlayer />}
       <TrackDetailsModal />
-
       <FirstLaunchModal />
     </>
   )

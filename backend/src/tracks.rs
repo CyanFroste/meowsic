@@ -53,8 +53,18 @@ impl Track {
 
         match url.source() {
             Some(source) if source == "youtube" => {
+                let format = r#"{ "title": %(title)j, "duration": %(duration)j, "track": %(track)j, "artist": %(artist)j, "album": %(album)j, "release_date": %(release_date)j, "ext": %(ext)j, "thumbnail": %(thumbnail)j, "thumbnails": %(thumbnails)j }"#;
+
+                #[rustfmt::skip]
                 let output = process::Command::new(&dependencies.yt_dlp)
-                    .args(["-f", "bestaudio", "-j", url.as_str(), "--no-playlist"])
+                    .args([
+                        "-f", "bestaudio",
+                        "--no-check-certificate",
+                        "--quiet", "--skip-download", "--no-playlist",
+                        "--output-na-placeholder", "null",
+                        "--print", format,
+                        url.as_str(),
+                    ])
                     .output()?;
 
                 let json: JsonValue = serde_json::from_slice(&output.stdout)?;

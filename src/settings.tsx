@@ -174,65 +174,63 @@ export function SettingsScreen() {
         <hr className="w-full mt-3 border-default/30" />
         <div className="text-large mt-2">Streaming</div>
 
-        {state.isEulaAccepted ? (
-          <div className="text-small mb-4 text-default-500 leading-relaxed">
-            {queryDependencies.isSuccess && queryDependencies.data ? (
-              <>
-                You can now stream and save tracks from external sources. <br />
-                <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are installed.
-              </>
-            ) : (
-              <>
-                To stream and save tracks from external sources, you need to install the required dependencies first.
-                <br /> This will download <Code className="mx-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="text-small text-default-500">
-            You need to accept the
-            <button
-              className="mx-1.5 text-foreground cursor-pointer font-medium"
-              onClick={() => document.querySelector('#eula-checkbox')?.scrollIntoView({ behavior: 'smooth' })}>
-              End User License Agreement
-            </button>
-            first to use this feature.
-          </div>
-        )}
+        <div className="text-small mb-4 text-default-500 leading-relaxed">
+          {!state.isEulaAccepted && (
+            <>
+              You need to accept the
+              <button
+                className="mx-1.5 text-foreground cursor-pointer font-medium"
+                onClick={() => document.querySelector('#eula-checkbox')?.scrollIntoView({ behavior: 'smooth' })}>
+                End User License Agreement
+              </button>
+              first to fully utilize this feature. <br />
+            </>
+          )}
 
-        {state.isEulaAccepted && (
-          <div className="flex items-center gap-3">
-            {queryDependencies.isSuccess && (
-              <>
-                {queryDependencies.data ? (
-                  <Button
-                    variant="flat"
-                    radius="sm"
-                    onPress={() => {
-                      if (queryDependencies.data) revealItemInDir(queryDependencies.data?.ffmpeg)
-                    }}>
-                    <PackageIcon className="text-lg" /> Locate Dependencies
-                  </Button>
-                ) : (
-                  <Button
-                    variant="flat"
-                    radius="sm"
-                    isLoading={mutationInstallDependenciesState?.status === 'pending'}
-                    onPress={() => {
-                      addToast({
-                        title: 'Installing Dependencies',
-                        description: 'Please wait. This may take a few minutes.',
-                        promise: mutationInstallDependencies.mutateAsync(),
-                        timeout: 1, // TODO: ? possible to change state from within ?
-                      })
-                    }}>
-                    <PackageIcon className="text-lg" /> Install Dependencies
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        )}
+          {queryDependencies.isSuccess && queryDependencies.data ? (
+            <>
+              You can now stream and save tracks from external sources.
+              <br /> <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are installed.
+            </>
+          ) : (
+            <>
+              To stream and save tracks from external sources, you need to install the required dependencies first.
+              <br /> <Code className="mr-1">yt-dlp</Code> and <Code className="mx-1">ffmpeg</Code> are not installed.
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {queryDependencies.isSuccess && (
+            <>
+              {queryDependencies.data ? (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  onPress={() => {
+                    if (queryDependencies.data) revealItemInDir(queryDependencies.data?.ffmpeg)
+                  }}>
+                  <PackageIcon className="text-lg" /> Locate Dependencies
+                </Button>
+              ) : (
+                <Button
+                  variant="flat"
+                  radius="sm"
+                  isLoading={mutationInstallDependenciesState?.status === 'pending'}
+                  onPress={() => {
+                    addToast({
+                      title: 'Installing Dependencies',
+                      description: 'Please wait. This may take a few minutes.',
+                      promise: mutationInstallDependencies.mutateAsync(),
+                      timeout: 1, // TODO: ? possible to change state from within ?
+                    })
+                  }}>
+                  <PackageIcon className="text-lg" /> Install Dependencies
+                </Button>
+              )}
+            </>
+          )}
+        </div>
 
         <hr className="w-full mt-3 border-default/30" />
         <div className="text-large my-2">Appearance</div>
@@ -270,7 +268,7 @@ export function SettingsScreen() {
 
         <hr className="w-full mt-3 border-default/30" />
 
-        <Accordion className="px-0" defaultExpandedKeys={['list']}>
+        <Accordion className="px-0">
           <AccordionItem key="list" title="Key Bindings" classNames={{ title: 'text-large', trigger: 'py-2' }}>
             <KeyBindings />
           </AccordionItem>

@@ -1,5 +1,6 @@
 use crate::db::Db;
 use crate::tracks;
+use crate::tracks::Track;
 use crate::utils::{Platform, extract_zip_archive};
 use anyhow::{Context, Result, anyhow};
 use serde::Serialize;
@@ -51,49 +52,71 @@ impl StreamingClient {
         source: impl AsRef<str>,
         query: impl AsRef<str>,
     ) -> Result<Vec<JsonValue>> {
+        match source.as_ref() {
+            "youtube" => self.search_youtube(query),
+            _ => return Err(anyhow!("Unsupported Source")),
+        }
+    }
+
+    // TODO: probably replace std::process with tokio::process
+    // REF: https://github.com/boul2gom/yt-dlp/blob/develop/src/executor/mod.rs
+    fn search_youtube(&self, query: impl AsRef<str>) -> Result<Vec<JsonValue>> {
         let dependencies = self.dependencies.as_ref().context("Missing Dependencies")?;
 
+        let query = format!(
+            "ytsearch{results_count}:{}",
+            query.as_ref(),
+            results_count = 30
+        );
+
+        let format = r#"{ "url": %(url)j, "title": %(title)j, "thumbnails": %(thumbnails)j, "duration": %(duration)j, "views": %(view_count)j, "channel": %(channel)j }"#;
+
+        #[rustfmt::skip]
+        let mut child = process::Command::new(&dependencies.yt_dlp)
+            .args([
+                &query,
+                "--skip-download", "--flat-playlist",
+                "--output-na-placeholder", "null",
+                "--print", format,
+            ])
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let reader = child
+            .stdout
+            .take()
+            .map(BufReader::new)
+            .ok_or_else(|| anyhow!("Failed to capture stdout"))?;
+
+        let mut res = Vec::new();
+
+        for line in reader.lines() {
+            if let Ok(line) = line
+                && !line.trim().is_empty()
+            {
+                let json: JsonValue = serde_json::from_str(&line)?;
+                res.push(json);
+            }
+        }
+
+        Ok(res)
+    }
+
+    pub async fn get_tracks(
+        &self,
+        source: impl AsRef<str>,
+        urls: &[impl IntoUrl + Clone],
+    ) -> Result<Vec<Track>> {
         match source.as_ref() {
             "youtube" => {
-                let query = format!(
-                    "ytsearch{results_count}:{}",
-                    query.as_ref(),
-                    results_count = 25
-                );
+                let dependencies = self.dependencies.as_ref().context("Missing Dependencies")?;
 
-                let format = r#"{ "url": %(url)j, "title": %(title)j, "thumbnails": %(thumbnails)j, "duration": %(duration)j, "views": %(view_count)j, "channel": %(channel)j }"#;
+                let (tracks, _) =
+                    tracks::from_urls(urls, &self.db.covers_path, &self.http_client, &dependencies)
+                        .await?;
 
-                #[rustfmt::skip]
-                let child = process::Command::new(&dependencies.yt_dlp)
-                    .args([
-                        &query,
-                        "--skip-download",
-                        "--flat-playlist",
-                        "--output-na-placeholder", "null",
-                        "--print", format,
-                    ])
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-
-                let reader = child
-                    .stdout
-                    .map(BufReader::new)
-                    .ok_or_else(|| anyhow!("Failed to capture stdout"))?;
-
-                let mut res = Vec::new();
-
-                for line in reader.lines() {
-                    if let Ok(line) = line
-                        && !line.trim().is_empty()
-                    {
-                        let json: JsonValue = serde_json::from_str(&line)?;
-                        res.push(json);
-                    }
-                }
-
-                Ok(res)
+                Ok(tracks)
             }
-
             _ => return Err(anyhow!("Unsupported Source")),
         }
     }

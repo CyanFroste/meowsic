@@ -51,14 +51,12 @@ export async function goto(index: number, using?: Player) {
     // case: show a toast when loading from external sources
     if (getTrackPathType(track.path)[0] === 'l')
       addToast({
-        title: track.title ?? track.name,
         promise,
+        title: track.title ?? track.name,
         color: 'warning',
         severity: 'success',
-        // TODO: show a formatted Card with the track info
-        description: `Fetching Track from ${track.path}`,
         shouldShowTimeoutProgress: true,
-        timeout: 1000,
+        timeout: 500,
       })
 
     await promise

@@ -104,7 +104,7 @@ export function FirstLaunchModal() {
       hideCloseButton
       isDismissable={false}
       isKeyboardDismissDisabled
-      isOpen={queryApp.data && firstLaunchVersion !== queryApp.data.version}>
+      isOpen={queryApp.isSuccess && firstLaunchVersion !== queryApp.data.version}>
       <ModalContent>
         <ModalHeader className="flex gap-2 text-xl">
           Welcome to <div className="capitalize">{queryApp.data?.name}</div>

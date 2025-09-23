@@ -166,6 +166,7 @@ async fn main() -> Result<()> {
             commands::db_restore,
             commands::db_reset,
             commands::streaming_search,
+            commands::streaming_get_tracks,
             commands::streaming_scan_urls,
             commands::streaming_load_dependencies,
             commands::streaming_install_dependencies,
