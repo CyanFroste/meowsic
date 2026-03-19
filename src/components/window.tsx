@@ -206,6 +206,16 @@ function WindowControls() {
   const currentWindow = getCurrentWindow()
   const [isMaximized, setIsMaximized] = useState(false)
 
+  useEffect(() => {
+    const unlisten = currentWindow.onResized(() => {
+      currentWindow.isMaximized().then(setIsMaximized)
+    })
+
+    return () => {
+      unlisten.then(fn => fn())
+    }
+  }, [])
+
   return (
     <>
       <Button variant="light" radius="none" className="min-w-12" onPress={() => currentWindow.minimize()}>
@@ -216,10 +226,7 @@ function WindowControls() {
         radius="none"
         variant="light"
         className="min-w-12 text-default-500 text-lg"
-        onPress={() => {
-          currentWindow.toggleMaximize()
-          setIsMaximized(!isMaximized)
-        }}>
+        onPress={() => currentWindow.toggleMaximize()}>
         {isMaximized ? <ChevronsDownUpIcon className="rotate-45" /> : <ChevronsUpDownIcon className="rotate-45" />}
       </Button>
 

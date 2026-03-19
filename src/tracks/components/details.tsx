@@ -124,7 +124,7 @@ export function Cover({ url, className, placeholder: Placeholder = MusicIcon, on
           shadow="none"
           width="100%"
           height="100%"
-          loading="lazy"
+          // loading="lazy" - issue with webview
           src={getAssetUrl(url)}
           classNames={{ wrapper: 'size-full', img: 'size-full object-contain' }}
         />
