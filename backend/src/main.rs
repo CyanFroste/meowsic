@@ -11,7 +11,7 @@ use anyhow::Result;
 use db::Db;
 use parking_lot::Mutex;
 use players::{Player, ScrubPlayer};
-use rodio::{OutputStream, Sink};
+use rodio::{DeviceSinkBuilder, Player as ExternalPlayer};
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{Builder, Emitter, Manager};
@@ -21,14 +21,14 @@ use tracks::Track;
 #[tokio::main]
 async fn main() -> Result<()> {
     // ! DO NOT DROP _stream (don't assign to just '_')
-    let (_stream, handle) = OutputStream::try_default()?;
-    let sink = Sink::try_new(&handle)?;
-    let player = Arc::new(Mutex::new(Player::new(sink)?));
+    let sink = DeviceSinkBuilder::open_default_sink()?;
+    let external_player = ExternalPlayer::connect_new(sink.mixer());
+    let player = Arc::new(Mutex::new(Player::new(external_player)?));
 
     // ! DO NOT DROP _stream (don't assign to just '_')
-    let (_stream, handle) = OutputStream::try_default()?;
-    let sink = Sink::try_new(&handle)?;
-    let scrub_player = Arc::new(Mutex::new(ScrubPlayer::new(sink)?));
+    let sink = DeviceSinkBuilder::open_default_sink()?;
+    let external_player = ExternalPlayer::connect_new(sink.mixer());
+    let scrub_player = Arc::new(Mutex::new(ScrubPlayer::new(external_player)?));
 
     let mut builder = Builder::default();
 

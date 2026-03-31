@@ -2,6 +2,7 @@
 
 ## Features
 
+- [ ] runtime cover and lyrics loading
 - [ ] hot swapping audio outputs
 - [ ] external media playback
 - [ ] layout customization

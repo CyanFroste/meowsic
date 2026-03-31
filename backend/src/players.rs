@@ -1,26 +1,25 @@
 use crate::tracks::Track;
 use anyhow::{Result, anyhow};
-use rodio::{Decoder, Sink};
+use rodio::{Decoder, Player as ExternalPlayer};
 use std::fs::File;
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 // ? TODO: send position to frontend
 
 pub struct Player {
-    sink: Sink,
+    player: ExternalPlayer,
     current: usize,
     pub queue: Vec<PathBuf>,
     pub arbitrary_tracks: Vec<Track>,
 }
 
 impl Player {
-    pub fn new(sink: Sink) -> Result<Self> {
-        sink.pause();
+    pub fn new(player: ExternalPlayer) -> Result<Self> {
+        player.pause();
 
         Ok(Self {
-            sink,
+            player,
             current: 0,
             queue: vec![],
             arbitrary_tracks: vec![],
@@ -31,25 +30,25 @@ impl Player {
         self.set_current(index)?;
         self.stop();
 
-        self.sink.load(&self.queue[self.current])
+        self.player.load(&self.queue[self.current])
     }
 
     pub fn seek(&self, elapsed: u64) -> Result<()> {
-        self.sink
+        self.player
             .try_seek(Duration::from_secs(elapsed))
             .map_err(|err| anyhow!("{err}"))
     }
 
     pub fn stop(&self) {
-        self.sink.stop();
+        self.player.stop();
     }
 
     pub fn play(&self) {
-        self.sink.play();
+        self.player.play();
     }
 
     pub fn pause(&self) {
-        self.sink.pause();
+        self.player.pause();
     }
 
     pub fn set_queue(&mut self, queue: Vec<PathBuf>) {
@@ -70,11 +69,11 @@ impl Player {
     }
 
     pub fn is_paused(&self) -> bool {
-        self.sink.is_paused()
+        self.player.is_paused()
     }
 
     pub fn set_volume(&self, volume: f32) {
-        self.sink.set_volume(volume);
+        self.player.set_volume(volume);
     }
 
     // pub fn set_speed(&self, speed: f32) {
@@ -83,16 +82,16 @@ impl Player {
 }
 
 pub struct ScrubPlayer {
-    sink: Sink,
+    player: ExternalPlayer,
     current: Option<PathBuf>,
 }
 
 impl ScrubPlayer {
-    pub fn new(sink: Sink) -> Result<Self> {
-        sink.pause();
+    pub fn new(player: ExternalPlayer) -> Result<Self> {
+        player.pause();
 
         Ok(Self {
-            sink,
+            player,
             current: None,
         })
     }
@@ -101,14 +100,14 @@ impl ScrubPlayer {
         self.stop();
 
         if let Some(path) = &self.current {
-            self.sink.load(path)
+            self.player.load(path)
         } else {
             Err(anyhow!("No track selected"))
         }
     }
 
     pub fn seek(&self, elapsed: u64) -> Result<()> {
-        self.sink
+        self.player
             .try_seek(Duration::from_secs(elapsed))
             .map_err(|err| anyhow!("{err}"))
     }
@@ -118,27 +117,26 @@ impl ScrubPlayer {
     }
 
     pub fn stop(&self) {
-        self.sink.stop();
+        self.player.stop();
     }
 
     pub fn play(&self) {
-        self.sink.play();
+        self.player.play();
     }
 
     pub fn pause(&self) {
-        self.sink.pause();
+        self.player.pause();
     }
 }
 
-trait SinkExt {
+trait PlayerExt {
     fn load(&self, path: impl AsRef<Path>) -> Result<()>;
 }
 
-impl SinkExt for Sink {
+impl PlayerExt for ExternalPlayer {
     fn load(&self, path: impl AsRef<Path>) -> Result<()> {
         let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        let source = Decoder::new(reader)?;
+        let source = Decoder::try_from(file)?;
 
         self.append(source);
 

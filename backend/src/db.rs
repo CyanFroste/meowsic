@@ -82,31 +82,40 @@ impl Db {
         let total = tracks.len() + errors.len();
 
         if !tracks.is_empty() {
-            let mut qb = QueryBuilder::new(
-                "INSERT OR IGNORE INTO tracks 
-                (hash, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre, number) ",
-            );
-
-            qb.push_values(tracks.into_iter().take(32000), |mut b, track| {
-                b.push_bind(track.hash)
-                    .push_bind(track.path.to_string_lossy().to_string())
-                    .push_bind(track.name)
-                    .push_bind(track.extension)
-                    .push_bind(track.duration as i64)
-                    .push_bind(track.cover.map(|p| p.to_string_lossy().to_string()))
-                    .push_bind(track.title)
-                    .push_bind(track.artist)
-                    .push_bind(track.album)
-                    .push_bind(track.album_artist)
-                    .push_bind(track.date)
-                    .push_bind(track.genre)
-                    .push_bind(track.number.map(|x| x as i64));
-            });
-
             let mut tx = self.pool.begin().await?;
 
             sqlx::query("DELETE FROM tracks").execute(&mut *tx).await?;
-            qb.build().execute(&mut *tx).await?;
+
+            for chunk in tracks.chunks(Self::get_batch_size(13, 32_766)) {
+                let mut qb = QueryBuilder::new(
+                    "INSERT OR IGNORE INTO tracks 
+                    (hash, path, name, extension, duration, cover, title, artist, album, album_artist, date, genre, number) ",
+                );
+
+                qb.push_values(chunk.iter(), |mut b, track| {
+                    b.push_bind(&track.hash)
+                        .push_bind(track.path.to_string_lossy().to_string())
+                        .push_bind(&track.name)
+                        .push_bind(&track.extension)
+                        .push_bind(track.duration as i64)
+                        .push_bind(
+                            track
+                                .cover
+                                .as_ref()
+                                .map(|p| p.to_string_lossy().to_string()),
+                        )
+                        .push_bind(&track.title)
+                        .push_bind(&track.artist)
+                        .push_bind(&track.album)
+                        .push_bind(&track.album_artist)
+                        .push_bind(&track.date)
+                        .push_bind(&track.genre)
+                        .push_bind(track.number.map(|x| x as i64));
+                });
+
+                qb.build().execute(&mut *tx).await?;
+            }
+
             tx.commit().await?;
         }
 
@@ -184,27 +193,31 @@ impl Db {
         name: impl AsRef<str>,
         hashes: Option<&[impl AsRef<str>]>,
     ) -> Result<()> {
+        let name = name.as_ref();
+
         if let Some(hashes) = hashes {
             if hashes.is_empty() {
                 return Ok(());
             }
 
             let mut tx = self.pool.begin().await?;
-            let name = name.as_ref();
 
-            let mut qb: QueryBuilder<Sqlite> =
-                QueryBuilder::new("DELETE FROM playlist_tracks WHERE playlist_name = ");
+            // 32_766-1 because playlist_name is also a bind
+            for chunk in hashes.chunks(Self::get_batch_size(1, 32_765)) {
+                let mut qb: QueryBuilder<Sqlite> =
+                    QueryBuilder::new("DELETE FROM playlist_tracks WHERE playlist_name = ");
 
-            qb.push_bind(name);
-            qb.push(" AND track_hash IN (");
-            let mut separated = qb.separated(", ");
+                qb.push_bind(name);
+                qb.push(" AND track_hash IN (");
 
-            for hash in hashes.iter().take(32000) {
-                separated.push_bind(hash.as_ref());
+                let mut separated = qb.separated(", ");
+                for hash in chunk {
+                    separated.push_bind(hash.as_ref());
+                }
+
+                qb.push(")");
+                qb.build().execute(&mut *tx).await?;
             }
-
-            qb.push(")");
-            qb.build().execute(&mut *tx).await?;
 
             sqlx::query(
                 "
@@ -227,7 +240,7 @@ impl Db {
             tx.commit().await?;
         } else {
             sqlx::query("DELETE FROM playlist_tracks WHERE playlist_name = $1")
-                .bind(name.as_ref())
+                .bind(name)
                 .execute(&self.pool)
                 .await?;
         }
@@ -276,15 +289,19 @@ impl Db {
             return Ok(());
         }
 
-        let mut qb =
-            QueryBuilder::new("INSERT INTO playlist_tracks (playlist_name, track_hash, position) ");
+        for chunk in filtered.chunks(Self::get_batch_size(3, 32_766)) {
+            let mut qb = QueryBuilder::new(
+                "INSERT INTO playlist_tracks (playlist_name, track_hash, position) ",
+            );
 
-        qb.push_values(filtered.into_iter().take(32000), |mut b, hash| {
-            b.push_bind(name).push_bind(hash).push_bind(max_pos);
-            max_pos += 1;
-        });
+            qb.push_values(chunk.iter(), |mut b, hash| {
+                b.push_bind(name).push_bind(*hash).push_bind(max_pos);
+                max_pos += 1;
+            });
 
-        qb.build().execute(&mut *tx).await?;
+            qb.build().execute(&mut *tx).await?;
+        }
+
         tx.commit().await?;
 
         Ok(())
@@ -540,23 +557,27 @@ impl Db {
 
                     // NOTE: doing one transaction per playlist
                     let mut tx = self.pool.begin().await?;
+                    let entries: Vec<_> = map.iter().collect();
 
                     sqlx::query("INSERT OR IGNORE INTO playlists (name) VALUES ($1)")
                         .bind(&playlist_name)
                         .execute(&mut *tx)
                         .await?;
 
-                    let mut qb = QueryBuilder::new(
-                        "INSERT OR IGNORE INTO playlist_tracks (playlist_name, track_hash, position) ",
-                    );
+                    for chunk in entries.chunks(Self::get_batch_size(3, 32_766)) {
+                        let mut qb = QueryBuilder::new(
+                            "INSERT OR IGNORE INTO playlist_tracks (playlist_name, track_hash, position) ",
+                        );
 
-                    qb.push_values(map.iter().take(32000), |mut b, (hash, position)| {
-                        b.push_bind(&playlist_name)
-                            .push_bind(hash)
-                            .push_bind(position);
-                    });
+                        qb.push_values(chunk.iter(), |mut b, (hash, position)| {
+                            b.push_bind(&playlist_name)
+                                .push_bind(*hash)
+                                .push_bind(*position);
+                        });
 
-                    qb.build().execute(&mut *tx).await?;
+                        qb.build().execute(&mut *tx).await?;
+                    }
+
                     tx.commit().await?;
                 }
             } else if file.name().starts_with("emotion") {
@@ -578,15 +599,22 @@ impl Db {
                         continue;
                     }
 
-                    QueryBuilder::new(
-                        "INSERT OR IGNORE INTO emotion_tracks (emotion_name, track_hash, rank) ",
-                    )
-                    .push_values(map.iter().take(32000), |mut b, (hash, rank)| {
-                        b.push_bind(name).push_bind(hash).push_bind(rank);
-                    })
-                    .build()
-                    .execute(&self.pool)
-                    .await?;
+                    let mut tx = self.pool.begin().await?;
+                    let entries: Vec<_> = map.iter().collect();
+
+                    for chunk in entries.chunks(Self::get_batch_size(3, 32_766)) {
+                        let mut qb = QueryBuilder::new(
+                            "INSERT OR IGNORE INTO emotion_tracks (emotion_name, track_hash, rank) ",
+                        );
+
+                        qb.push_values(chunk.iter(), |mut b, (hash, rank)| {
+                            b.push_bind(name).push_bind(*hash).push_bind(*rank);
+                        });
+
+                        qb.build().execute(&mut *tx).await?;
+                    }
+
+                    tx.commit().await?;
                 }
             } else if file.name().starts_with("tracks_extended") {
                 let data: Vec<JsonValue> = serde_json::from_reader(file)?;
@@ -613,25 +641,42 @@ impl Db {
                 }
 
                 if !lyrics_map.is_empty() {
-                    QueryBuilder::new("INSERT OR IGNORE INTO lyrics (track_hash, plain, synced) ")
-                        .push_values(lyrics_map.iter().take(32000), |mut b, (hash, lyrics)| {
-                            b.push_bind(hash)
+                    let mut tx = self.pool.begin().await?;
+                    let entries: Vec<_> = lyrics_map.iter().collect();
+
+                    for chunk in entries.chunks(Self::get_batch_size(3, 32_766)) {
+                        let mut qb = QueryBuilder::new(
+                            "INSERT OR IGNORE INTO lyrics (track_hash, plain, synced) ",
+                        );
+
+                        qb.push_values(chunk.iter(), |mut b, (hash, lyrics)| {
+                            b.push_bind(*hash)
                                 .push_bind(&lyrics.plain)
                                 .push_bind(&lyrics.synced);
-                        })
-                        .build()
-                        .execute(&self.pool)
-                        .await?;
+                        });
+
+                        qb.build().execute(&mut *tx).await?;
+                    }
+
+                    tx.commit().await?;
                 }
 
                 if !rules_map.is_empty() {
-                    QueryBuilder::new("INSERT OR IGNORE INTO ruleset (track_hash, rules) ")
-                        .push_values(rules_map.iter().take(32000), |mut b, (hash, rules)| {
-                            b.push_bind(hash).push_bind(rules);
-                        })
-                        .build()
-                        .execute(&self.pool)
-                        .await?;
+                    let mut tx = self.pool.begin().await?;
+                    let entries: Vec<_> = rules_map.iter().collect();
+
+                    for chunk in entries.chunks(Self::get_batch_size(2, 32_766)) {
+                        let mut qb =
+                            QueryBuilder::new("INSERT OR IGNORE INTO ruleset (track_hash, rules) ");
+
+                        qb.push_values(chunk.iter(), |mut b, (hash, rules)| {
+                            b.push_bind(*hash).push_bind(*rules);
+                        });
+
+                        qb.build().execute(&mut *tx).await?;
+                    }
+
+                    tx.commit().await?;
                 }
             }
         }
@@ -767,6 +812,11 @@ impl Db {
             .await?;
 
         Ok(())
+    }
+
+    pub fn get_batch_size(params_per_row: usize, max_params: usize) -> usize {
+        // safer: 999 if portability matters
+        max_params / params_per_row
     }
 }
 
