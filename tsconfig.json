@@ -15,8 +15,7 @@
     "noFallthroughCasesInSwitch": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "hero.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
