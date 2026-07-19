@@ -280,7 +280,7 @@ export function TrackScreen() {
   })
 
   return (
-    <div className="pt-[calc(theme(spacing.10))] overflow-auto size-full flex flex-col">
+    <div className="pt-[calc(--spacing(10))] overflow-auto size-full flex flex-col">
       {query.isSuccess && query.data && (
         <div className="pt-2 flex flex-col gap-6 h-full overflow-auto">
           <div className="w-full rounded-small pt-3 bg-default-50/25 shrink-0 pl-6 pr-16 flex">

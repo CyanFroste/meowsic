@@ -14,7 +14,7 @@ export function SearchBar({ value, onChange, className }: SearchBarProps) {
       value={value}
       onValueChange={onChange}
       onClear={() => onChange('')}
-      startContent={<SearchIcon className="text-lg text-default-500 flex-shrink-0 mr-1" />}
+      startContent={<SearchIcon className="text-lg text-default-500 shrink-0 mr-1" />}
       classNames={{
         // TODO: ? make this solid depending on background
         base: className,
@@ -53,7 +53,7 @@ export function AppBar({ className, ...props }: React.HTMLAttributes<HTMLDivElem
     <div
       {...props}
       className={cn(
-        'px-6 h-16 flex items-center gap-3 rounded-small absolute top-[calc(theme(spacing.10)+theme(spacing.2))] left-0 right-3',
+        'px-6 h-16 flex items-center gap-3 rounded-small absolute top-[calc(--spacing(10)+(--spacing(2)))] left-0 right-3',
         'bg-default-50/25 backdrop-blur-lg z-50 backdrop-saturate-125',
         className,
       )}
@@ -63,7 +63,7 @@ export function AppBar({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 
 export function HomeScreen() {
   return (
-    <div className="p-3 pt-[calc(theme(spacing.10)+theme(spacing.2))] w-full">
+    <div className="p-3 pt-[calc(--spacing(10)+(--spacing(2)))] w-full">
       <Player />
     </div>
   )

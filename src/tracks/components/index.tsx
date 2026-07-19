@@ -293,7 +293,7 @@ export const ListItem = memo(
         {...draggableProps?.provided.dragHandleProps}
         style={draggableProps?.provided.draggableProps.style}
         className={cn(
-          'flex items-center gap-3 p-3 !cursor-default',
+          'flex items-center gap-3 p-3 cursor-default!',
           draggableProps?.snapshot.isDragging &&
             'bg-secondary-50/25 border-secondary/10 border saturate-125 backdrop-blur-lg rounded-small cursor-grabbing',
         )}>
@@ -357,7 +357,7 @@ function ListContainer(props: ListContainerProps) {
 }
 
 function ListHeader(props: ListHeaderProps) {
-  return <div {...props} className="h-[calc(theme(spacing.10)+theme(spacing.16)+theme(spacing.4))]" />
+  return <div {...props} className="h-[calc(--spacing(10)+(--spacing(16))+(--spacing(4)))]" />
 }
 
 export function useTrackSelection() {

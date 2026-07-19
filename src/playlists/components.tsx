@@ -128,7 +128,7 @@ export function PlaylistScreen() {
               radius="sm"
               variant="flat"
               color="danger"
-              className="!text-foreground"
+              className="text-foreground!"
               onPress={removeSelectedTracksModal.onOpen}>
               <Trash2Icon className="text-lg" /> Remove Selected
             </Button>
@@ -178,7 +178,7 @@ export function PlaylistScreen() {
               variant="flat"
               color="danger"
               size="sm"
-              className="!text-foreground"
+              className="text-foreground!"
               onPress={() => {
                 setEditorType('remove')
                 editorModal.onOpen()
@@ -304,7 +304,7 @@ export function PlaylistsScreen() {
 
   return (
     <>
-      <div className="pt-[calc(theme(spacing.10)+theme(spacing.2))] overflow-auto w-full flex flex-col h-full gap-2">
+      <div className="pt-[calc(--spacing(10)+(--spacing(2)))] overflow-auto w-full flex flex-col h-full gap-2">
         <div
           className="px-6 py-3 flex items-center gap-3 rounded-small
           sticky top-0 inset-x-0 bg-default-50/25 backdrop-blur-lg z-50 backdrop-saturate-125">

@@ -1,33 +1,33 @@
 [package]
 name = "meowsic"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2024"
 
 [build-dependencies]
-tauri-build = { version = "2.5.6", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.10.3", features = ["protocol-asset", "devtools"] }
-tauri-plugin-http = { version = "2.5.7", features = ["json"] }
-tauri-plugin-store = "2.4.2"
-tauri-plugin-opener = "2.5.3"
-tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-anyhow = "1.0.102"
+tauri = { version = "2.11.5", features = ["protocol-asset", "devtools"] }
+tauri-plugin-http = { version = "2.5.9", features = ["json"] }
+tauri-plugin-store = "2.4.4"
+tauri-plugin-opener = "2.5.4"
+tokio = { version = "1.53.0", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.150"
+anyhow = "1.0.104"
 parking_lot = "0.12.5"
 rodio = { version = "0.22.2", default-features = false, features = [
     "symphonia-all",
     "playback",
 ] }
 symphonia = { version = "0.5.5", features = ["all"] }
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "sqlite"] }
 walkdir = "2.5.0"
-tauri-plugin-dialog = "2.6.0"
-serde_with = "3.18.0"
-blake3 = "1.8.4"
-zip = "8.4.0"
+tauri-plugin-dialog = "2.7.2"
+serde_with = "3.21.0"
+blake3 = "1.8.5"
+zip = "8.6.0"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-global-shortcut = "2.3.1"
-tauri-plugin-single-instance = "2.4.0"
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-single-instance = "2.4.3"

@@ -90,12 +90,12 @@ export function EmotionScreen() {
 
         <div
           style={{ '--color': emotion?.color } as React.CSSProperties}
-          className="p-2 rounded-full bg-gradient-to-r from-[var(--color)]/10 t0-transparent flex items-center">
+          className="p-2 rounded-full bg-linear-to-r from-(--color)/10 t0-transparent flex items-center">
           {emotion?.icon && (
             <Image removeWrapper src={`/icons/emotion-${emotion.icon}`} className="size-8 object-cover" />
           )}
 
-          <div className={cn('text-large text-[var(--color)]', emotion ? 'pl-3 pr-6' : 'px-3')}>{params.name}</div>
+          <div className={cn('text-large text-(--color)', emotion ? 'pl-3 pr-6' : 'px-3')}>{params.name}</div>
         </div>
 
         <SearchBar value={searchQuery} onChange={setSearchQuery} className="w-120 ml-auto" />
@@ -123,7 +123,7 @@ export function EmotionsScreen() {
 
   return (
     <>
-      <div className="pt-[calc(theme(spacing.10))] overflow-auto w-full flex flex-col h-full gap-2">
+      <div className="pt-[calc(--spacing(10))] overflow-auto w-full flex flex-col h-full gap-2">
         <div className="grid grid-cols-6 p-3 shrink-0 w-full relative gap-3">
           {query.isSuccess &&
             query.data.map(item => (
@@ -133,7 +133,7 @@ export function EmotionsScreen() {
                 radius="sm"
                 shadow="none"
                 to={`/emotions/${item.name}`}
-                className="aspect-square bg-[var(--color)]"
+                className="aspect-square bg-(--color)"
                 style={{ '--color': item.color } as React.CSSProperties}>
                 <Image removeWrapper src={`/icons/emotion-${item.icon}`} className="h-1/3 m-auto" />
 
@@ -165,7 +165,7 @@ export function EmotionSelect({ className }: EmotionSelectProps) {
           variant="light"
           style={{ '--color': current?.color } as React.CSSProperties}
           className={cn(
-            current?.name === DEFAULT_EMOTION ? 'text-default-500' : 'text-[var(--color)] bg-[var(--color)]/10',
+            current?.name === DEFAULT_EMOTION ? 'text-default-500' : 'text-(--color) bg-(--color)/10',
             className,
           )}>
           <SmileIcon className="text-lg" />
@@ -179,12 +179,12 @@ export function EmotionSelect({ className }: EmotionSelectProps) {
             textValue={item.name}
             onPress={() => setEmotion(item.name)}
             style={{ '--color': item.color } as React.CSSProperties}
-            className={cn(current?.name === item.name && 'bg-[var(--color)]/10')}>
+            className={cn(current?.name === item.name && 'bg-(--color)/10')}>
             <div className="flex items-center gap-3">
               <Image removeWrapper src={`/icons/emotion-${item.icon}`} className="size-8 object-cover" />
 
-              <div className="text-[var(--color)]">{item.name}</div>
-              {current?.name === item.name && <CheckIcon className="text-lg text-[var(--color)] ml-auto" />}
+              <div className="text-(--color)">{item.name}</div>
+              {current?.name === item.name && <CheckIcon className="text-lg text-(--color) ml-auto" />}
             </div>
           </DropdownItem>
         ))}

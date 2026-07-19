@@ -100,7 +100,7 @@ export function SettingsScreen() {
   })
 
   return (
-    <div className="p-3 pt-[calc(theme(spacing.10)+theme(spacing.3))] overflow-auto w-full">
+    <div className="p-3 pt-[calc(--spacing(10)+(--spacing(3)))] overflow-auto w-full">
       <div className="flex flex-col items-start gap-3">
         <div className="text-large mt-2">Folders to Scan</div>
 
@@ -123,7 +123,7 @@ export function SettingsScreen() {
                     await setDirs(queryDirs.data.filter(d => d !== dir))
                     await queryDirs.refetch()
                   }}>
-                  <XIcon className="text-medium !text-foreground" />
+                  <XIcon className="text-medium text-foreground!" />
                 </Button>
               </div>
             ))}

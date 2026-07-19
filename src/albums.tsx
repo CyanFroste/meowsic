@@ -135,7 +135,7 @@ function ListContainer(props: ListContainerProps) {
 }
 
 function ListHeader(props: ListHeaderProps) {
-  return <div {...props} className="h-[calc(theme(spacing.10)+theme(spacing.16)+theme(spacing.4))]" />
+  return <div {...props} className="h-[calc(--spacing(10)+(--spacing(16))+(--spacing(4)))]" />
 }
 
 function ListFooter(props: ListFooterProps) {

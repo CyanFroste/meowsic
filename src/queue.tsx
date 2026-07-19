@@ -72,7 +72,7 @@ export function QueueScreen() {
           radius="sm"
           variant="flat"
           color="danger"
-          className="!text-foreground"
+          className="text-foreground!"
           onPress={onRemove}
           isDisabled={!player.queue.length}>
           <Trash2Icon className="text-lg" /> Remove {selection.values.length > 0 ? 'Selected' : 'All'}

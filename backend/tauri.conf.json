@@ -12,7 +12,7 @@
     "active": true,
     "createUpdaterArtifacts": false,
     "category": "Music",
-    "copyright": "Copyright © 2025 Cyan Froste",    
+    "copyright": "Copyright © 2025-2026 Cyan Froste",    
     "shortDescription": "A beautiful and modern music player",
     "targets": ["nsis", "deb", "rpm"],
     "icon": ["icons/icon.ico"],

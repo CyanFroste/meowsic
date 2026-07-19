@@ -16,7 +16,6 @@ export default defineConfig(async () => ({
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
-
   clearScreen: false,
   server: {
     port: 1420,

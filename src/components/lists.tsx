@@ -109,7 +109,7 @@ function VirtualItem<T>({ item, ...props }: VirtualItemProps<T>) {
     <div
       {...props}
       style={{ ...props.style, '--item-height': `${size}px` } as React.CSSProperties}
-      className="empty:min-h-[var(--item-height)] empty:box-border"
+      className="empty:min-h-(--item-height) empty:box-border"
     />
   )
 }

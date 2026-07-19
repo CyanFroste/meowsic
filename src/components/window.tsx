@@ -177,7 +177,7 @@ export function Window() {
 
       <div className="flex h-full">
         {showBars && (
-          <div className="flex flex-col gap-2 p-3 pt-[calc(theme(spacing.10)+theme(spacing.3))] h-full w-44">
+          <div className="flex flex-col gap-2 p-3 pt-[calc(--spacing(10)+(--spacing(3)))] h-full w-44">
             <NavLink url="/tracks" title="Tracks" icon={MusicIcon} />
             <NavLink url="/queue" title="Queue" icon={ListVideoIcon} />
             <NavLink url="/playlists" title="Playlists" icon={ListMusicIcon} />
