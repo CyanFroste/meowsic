@@ -6,10 +6,10 @@ use serde_with::skip_serializing_none;
 use std::fmt::Debug;
 use std::fs;
 use std::path::{Path, PathBuf};
-use symphonia::core::formats::FormatOptions;
+use symphonia::core::formats::probe::Hint;
+use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::io::MediaSourceStream;
-use symphonia::core::meta::{MetadataOptions, StandardTagKey, StandardVisualKey};
-use symphonia::core::probe::Hint;
+use symphonia::core::meta::{MetadataOptions, StandardTag, StandardVisualKey};
 use symphonia::default::get_probe;
 use walkdir::WalkDir;
 
@@ -63,11 +63,11 @@ impl Track {
         let mut hint = Hint::new();
         hint.with_extension(&extension);
 
-        let mut probed = get_probe().format(
+        let mut probed = get_probe().probe(
             &hint,
             mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
+            FormatOptions::default(),
+            MetadataOptions::default(),
         )?;
 
         let mut data = Self {
@@ -78,75 +78,60 @@ impl Track {
             ..Self::default()
         };
 
-        if let Some(track) = probed.format.default_track() {
-            if let Some((num_frames, sample_rate)) = track
-                .codec_params
-                .n_frames
-                .zip(track.codec_params.sample_rate)
-            {
-                data.duration = num_frames / sample_rate as u64;
-            }
+        if let Some(track) = probed.default_track(TrackType::Audio)
+            && let Some((time_base, duration)) = track.time_base.zip(track.duration)
+            && let Some(time) = duration
+                .timestamp_from(Default::default())
+                .and_then(|x| time_base.calc_time(x))
+        {
+            data.duration = time.as_secs() as u64;
         }
 
-        if let Some(mut meta) = probed
-            .metadata
-            .get()
-            .or_else(|| Some(probed.format.metadata()))
-        {
-            if let Some(rev) = meta.skip_to_latest() {
-                for tag in rev.tags() {
-                    if let Some(key) = tag.std_key {
-                        use StandardTagKey::*;
-
-                        match key {
-                            TrackTitle => data.title = Some(tag.value.to_string()),
-                            Artist => data.artist = Some(tag.value.to_string()),
-                            Album => data.album = Some(tag.value.to_string()),
-                            AlbumArtist => data.album_artist = Some(tag.value.to_string()),
-                            Date => data.date = Some(tag.value.to_string()),
-                            Genre => data.genre = Some(tag.value.to_string()),
-                            TrackNumber => {
-                                use symphonia::core::meta::Value::*;
-
-                                data.number = match tag.value {
-                                    SignedInt(n) => n.try_into().ok(),
-                                    UnsignedInt(n) => Some(n),
-                                    String(ref s) => s.parse().ok().or_else(|| {
-                                        // sometimes this is a string like "1/2"
-                                        s.split('/').next().and_then(|x| x.parse().ok())
-                                    }),
-                                    _ => None,
-                                };
-                            }
-                            _ => {}
+        if let Some(meta) = probed.metadata().skip_to_latest() {
+            for tag in &meta.media.tags {
+                if let Some(key) = &tag.std {
+                    match key {
+                        StandardTag::TrackTitle(value) => data.title = Some(value.to_string()),
+                        StandardTag::Artist(value) => data.artist = Some(value.to_string()),
+                        StandardTag::Album(value) => data.album = Some(value.to_string()),
+                        StandardTag::AlbumArtist(value) => {
+                            data.album_artist = Some(value.to_string())
                         }
+                        StandardTag::ReleaseDate(value) => data.date = Some(value.to_string()),
+                        StandardTag::Genre(value) => data.genre = Some(value.to_string()),
+                        StandardTag::TrackNumber(value) => data.number = Some(*value),
+                        _ => {}
                     }
                 }
+            }
 
-                let visuals = rev.visuals();
-                let mut priority = [None, None];
-                let mut others = Vec::with_capacity(visuals.len());
+            let visuals = &meta.media.visuals;
+            let mut priority = [None, None];
+            let mut others = Vec::with_capacity(visuals.len());
 
-                for entry in visuals {
-                    match entry.usage {
-                        Some(StandardVisualKey::FrontCover) => priority[0] = Some(entry),
-                        Some(StandardVisualKey::BackCover) => priority[1] = Some(entry),
-                        _ => others.push(entry),
-                    }
+            for entry in visuals {
+                match entry.usage {
+                    Some(StandardVisualKey::FrontCover) => priority[0] = Some(entry),
+                    Some(StandardVisualKey::BackCover) => priority[1] = Some(entry),
+                    _ => others.push(entry),
+                }
+            }
+
+            for entry in priority.into_iter().flatten().chain(others) {
+                if entry.data.is_empty() {
+                    continue;
                 }
 
-                for entry in priority.into_iter().flatten().chain(others) {
-                    if entry.data.is_empty() {
-                        continue;
-                    }
+                let ext = entry
+                    .media_type
+                    .as_deref()
+                    .and_then(|x| x.split("/").nth(1).map(|x| x.to_string()))
+                    .unwrap_or("jpg".to_string());
+                let path = covers_path.as_ref().join(format!("{hash}.{ext}"));
 
-                    let (_, ext) = entry.media_type.split_once("/").unwrap_or(("image", "jpg"));
-                    let path = covers_path.as_ref().join(format!("{hash}.{ext}"));
-
-                    fs::write(&path, &entry.data)?;
-                    data.cover = Some(path);
-                    break;
-                }
+                fs::write(&path, &entry.data)?;
+                data.cover = Some(path);
+                break;
             }
         }
 

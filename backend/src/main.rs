@@ -68,10 +68,10 @@ async fn main() -> Result<()> {
             // could always do this from UI side but, oh well
             tokio::task::block_in_place(|| RuntimeHandle::current().block_on(db.init()))?;
 
-            if let Some(path) = std::env::args().nth(1) {
-                if let Ok(track) = Track::new(path, &covers_path) {
-                    player.lock().arbitrary_tracks.push(track);
-                }
+            if let Some(path) = std::env::args().nth(1)
+                && let Ok(track) = Track::new(path, &covers_path)
+            {
+                player.lock().arbitrary_tracks.push(track);
             }
 
             app.manage(AppState {
